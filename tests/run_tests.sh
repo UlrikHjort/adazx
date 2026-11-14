@@ -35,6 +35,14 @@ bin/adazx --48 --headless 300 --png "$T/b.png" --screen "$T/t.tap" > "$T/tap.out
 check "48K tape, flash load" "$T/tap.out" "TAPE144125"
 bin/adazx --48 --real-tape --headless 1300 --png "$T/c.png" --screen "$T/t.tap" > "$T/tap2.out"
 check "48K tape, real-time load" "$T/tap2.out" "TAPE144125"
+# TZX generalized data and CSW (RLE / Z-RLE) blocks, loaded in real time
+if command -v python3 > /dev/null; then
+  for m in gdb csw cswz; do
+    python3 -I tests/make_tzx.py $m "$T/t.tap" "$T/$m.tzx"
+    bin/adazx --48 --headless 1500 --png "$T/x.png" --screen "$T/$m.tzx" > "$T/$m.out"
+    check "TZX $m block" "$T/$m.out" "TAPE144125"
+  done
+fi
 # assembler, loader, RANDOMIZE USR
 bin/adazx --asm examples/hello.asm > /dev/null
 bin/adazx --48 --headless 300 --png "$T/d.png" --screen examples/hello.tap > "$T/asm.out"

@@ -25,6 +25,9 @@
 
 with File_Ext;
 with Ada.Streams.Stream_IO;
+with Ada.Containers.Vectors;
+with Interfaces.C;
+with System;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Directories;
 with Ada.Characters.Handling;
@@ -38,8 +41,18 @@ package body Tape is
    package SIO renames Ada.Streams.Stream_IO;
 
    type Kind_Type is (Standard, Turbo, Tone, Pulses, Pure_Data, Direct,
-                      Pause, Loop_Start, Loop_End, Jump, Stop48, Set_Level,
-                      Info);
+                      Events, Pause, Loop_Start, Loop_End, Jump, Stop48,
+                      Set_Level, Info);
+   --  Events: generalized data (&19) and CSW (&18) blocks, expanded into
+   --  the event list when the tape is read
+
+   type Action_Type is (None, Toggle, Set_Low, Set_High);
+   type Event is record
+      Dur : Natural;           --  T-states (3.5 MHz) before the action
+      Act : Action_Type;
+   end record;
+   package Event_Vectors is new Ada.Containers.Vectors (Positive, Event);
+   Event_List : Event_Vectors.Vector;
 
    type Block is record
       Kind : Kind_Type := Info;
@@ -49,6 +62,7 @@ package body Tape is
       Pause_Ms : Natural := 0;
       Data_Ofs, Data_Len : Natural := 0;
       Count : Natural := 0;           --  tone pulses / loop count / pulses
+      Ev_First : Positive := 1;       --  events in Event_List
       Offset : Integer := 0;          --  jump
       Level : Boolean := False;
       Text : Unbounded_String;
@@ -64,8 +78,8 @@ package body Tape is
 
    --  Generator state
    type Stage_Type is (Start, Pilot_St, Sync1_St, Sync2_St, Data_St,
-                       Pause_St, Pause_Rest, Tone_St, Pulse_St, Direct_St);
-   type Action_Type is (None, Toggle, Set_Low, Set_High);
+                       Pause_St, Pause_Rest, Tone_St, Pulse_St, Direct_St,
+                       Event_St);
 
    Blk : Natural := 1;
    Stage : Stage_Type := Start;
@@ -160,6 +174,152 @@ package body Tape is
       end loop;
    end Parse_TAP;
 
+   procedure Add_Event (Dur : Natural; Act : Action_Type) is
+   begin
+      Event_List.Append ((Dur, Act));
+   end Add_Event;
+
+   --  Generalized data block (TZX 1.20 block &19) at P (after the ID):
+   --  pilot / sync symbols with run lengths, then a stream of data symbols
+   --  of NB bits; each symbol is a list of pulses whose first edge depends
+   --  on the symbol's flags
+   procedure Parse_Generalized (P : Natural; B : in out Block) is
+      Len  : constant Natural := W4 (P);
+      TOTP : constant Natural := W4 (P + 6);
+      NPP  : constant Natural := D (P + 10);
+      ASP  : constant Natural := (if D (P + 11) = 0 then 256 else D (P + 11));
+      TOTD : constant Natural := W4 (P + 12);
+      NPD  : constant Natural := D (P + 16);
+      ASD  : constant Natural := (if D (P + 17) = 0 then 256 else D (P + 17));
+      Q : Natural := P + 18;
+      Sym_P, Sym_D : Natural := 0;
+      NB : Natural := 0;
+
+      procedure Symbol (Table, NP, S : Natural) is
+         Ofs : constant Natural := Table + S * (1 + 2 * NP);
+         Flags : constant Natural := D (Ofs) mod 4;
+         Pulses : array (1 .. 255) of Natural;
+         N : Natural := 0;
+      begin
+         Add_Event (0, (case Flags is when 0 => Toggle, when 1 => None,
+                           when 2 => Set_Low, when others => Set_High));
+         for K in 1 .. NP loop
+            exit when W (Ofs + 1 + 2 * (K - 1)) = 0;
+            N := N + 1;
+            Pulses (N) := W (Ofs + 1 + 2 * (K - 1));
+         end loop;
+         for K in 1 .. N loop
+            Add_Event (Pulses (K), (if K < N then Toggle else None));
+         end loop;
+      end Symbol;
+   begin
+      B.Kind := Events;
+      B.Pause_Ms := W (P + 4);
+      B.Ev_First := Event_List.Last_Index + 1;
+      if TOTP > 0 then
+         Sym_P := Q;
+         Q := Q + ASP * (1 + 2 * NPP);
+         for K in 0 .. TOTP - 1 loop
+            for Rep in 1 .. W (Q + 3 * K + 1) loop
+               Symbol (Sym_P, NPP, D (Q + 3 * K));
+            end loop;
+         end loop;
+         Q := Q + 3 * TOTP;
+      end if;
+      if TOTD > 0 then
+         Sym_D := Q;
+         Q := Q + ASD * (1 + 2 * NPD);
+         while 2 ** NB < ASD loop
+            NB := NB + 1;
+         end loop;
+         for K in 0 .. TOTD - 1 loop
+            declare
+               S : Natural := 0;
+            begin
+               for Bit in 0 .. NB - 1 loop
+                  declare
+                     Pos : constant Natural := K * NB + Bit;
+                  begin
+                     S := S * 2 + (if (D (Q + Pos / 8) / 2 ** (7 - Pos mod 8))
+                                   mod 2 = 1 then 1 else 0);
+                  end;
+               end loop;
+               Symbol (Sym_D, NPD, S);
+            end;
+         end loop;
+      end if;
+      B.Count := Event_List.Last_Index + 1 - B.Ev_First;
+      --  the pause after the block starts with an edge, which ends the
+      --  last pulse (as after the other data blocks)
+      if B.Count > 0 and then B.Pause_Ms > 0 then
+         Event_List.Replace_Element
+           (Event_List.Last_Index,
+            (Event_List.Last_Element.Dur, Toggle));
+      end if;
+      B.Text := To_Unbounded_String ("generalized data");
+      pragma Unreferenced (Len);
+   end Parse_Generalized;
+
+   function Uncompress (Dest : System.Address;
+                        Dest_Len : access Interfaces.C.unsigned_long;
+                        Source : System.Address;
+                        Source_Len : Interfaces.C.unsigned_long)
+                        return Interfaces.C.int;
+   pragma Import (C, Uncompress, "uncompress");
+
+   --  CSW recording (block &18): pulse lengths in samples, RLE or Z-RLE
+   procedure Parse_CSW (P : Natural; B : in out Block) is
+      Len  : constant Natural := W4 (P);
+      Rate : constant Natural := Natural'Max (1, W3 (P + 6));
+      Comp : constant Natural := D (P + 9);
+      N_Pulses : constant Natural := W4 (P + 10);
+      Raw : constant Byte_Array := Image (P + 14 .. P + 4 + Len - 1);
+
+      procedure Decode (Data : Byte_Array) is
+         I : Natural := Data'First;
+         Samples : Natural;
+      begin
+         while I <= Data'Last loop
+            if Data (I) = 0 and then I + 4 <= Data'Last then
+               Samples := Natural (Data (I + 1)) + 256 * Natural (Data (I + 2))
+                 + 65536 * Natural (Data (I + 3))
+                 + 16777216 * Natural (Data (I + 4) and 16#7F#);
+               I := I + 5;
+            else
+               Samples := Natural (Data (I));
+               I := I + 1;
+            end if;
+            Add_Event (Natural (Long_Long_Integer (Samples) * 3_500_000
+                                / Long_Long_Integer (Rate)), Toggle);
+         end loop;
+      end Decode;
+   begin
+      B.Kind := Events;
+      B.Pause_Ms := W (P + 4);
+      B.Ev_First := Event_List.Last_Index + 1;
+      B.Text := To_Unbounded_String ("CSW recording");
+      if Comp = 2 then
+         declare
+            Out_Buf : Byte_Array (0 .. N_Pulses * 5 + 64);
+            Out_Len : aliased Interfaces.C.unsigned_long := Out_Buf'Length;
+            use type Interfaces.C.int;
+         begin
+            if Raw'Length > 0
+              and then Uncompress (Out_Buf'Address, Out_Len'Access,
+                                   Raw'Address,
+                                   Interfaces.C.unsigned_long (Raw'Length)) = 0
+            then
+               Decode (Out_Buf (0 .. Natural (Out_Len) - 1));
+            else
+               B.Text := To_Unbounded_String ("CSW recording (damaged)");
+            end if;
+         end;
+      else
+         Decode (Raw);
+      end if;
+      B.Count := Event_List.Last_Index + 1 - B.Ev_First;
+   end Parse_CSW;
+
    procedure Parse_TZX (Ok : out Boolean) is
       P : Natural := 10;
       Last : constant Natural := Image'Length;
@@ -238,9 +398,12 @@ package body Tape is
                   B.Text := To_Unbounded_String ("direct recording");
                   Add (B);
                   P := P + 8 + Len;
-               when 16#18# | 16#19# =>
-                  B.Text := To_Unbounded_String
-                    ("unsupported block (CSW / generalized data)");
+               when 16#19# =>
+                  Parse_Generalized (P, B);
+                  Add (B);
+                  P := P + 4 + W4 (P);
+               when 16#18# =>
+                  Parse_CSW (P, B);
                   Add (B);
                   P := P + 4 + W4 (P);
                when 16#20# =>
@@ -342,6 +505,7 @@ package body Tape is
    begin
       Image := null;
       N_Blocks := 0;
+      Event_List.Clear;
       Image_Name := Null_Unbounded_String;
       Is_Playing := False;
       Rewind;
@@ -425,6 +589,8 @@ package body Tape is
                         Stage := Data_St;
                      when Direct =>
                         Stage := Direct_St;
+                     when Events =>
+                        Stage := Event_St;
                      when Pause =>
                         if B.Pause_Ms = 0 then
                            Next_Block;
@@ -520,6 +686,19 @@ package body Tape is
                              else Set_Low);
                      Bit_Pos := Bit_Pos + 1;
                      return;
+                  end if;
+                  Stage := Pause_St;
+               when Event_St =>
+                  if Counter < B.Count then
+                     declare
+                        E : constant Event :=
+                          Event_List (B.Ev_First + Counter);
+                     begin
+                        Counter := Counter + 1;
+                        Dur := E.Dur;
+                        Act := E.Act;
+                        return;
+                     end;
                   end if;
                   Stage := Pause_St;
                when Pause_St =>
