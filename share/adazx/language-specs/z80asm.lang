@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Z80 assembly (AdaZX Forge) -->
+<language id="z80asm" name="Z80 Assembly" version="2.0" _section="Source">
+  <metadata>
+    <property name="globs">*.asm;*.z80s;*.s;*.a80;*.inc</property>
+    <property name="line-comment-start">;</property>
+  </metadata>
+  <styles>
+    <style id="comment"   name="Comment"   map-to="def:comment"/>
+    <style id="string"    name="String"    map-to="def:string"/>
+    <style id="mnemonic"  name="Mnemonic"  map-to="def:keyword"/>
+    <style id="directive" name="Directive" map-to="def:preprocessor"/>
+    <style id="number"    name="Number"    map-to="def:number"/>
+    <style id="label"     name="Label"     map-to="def:function"/>
+    <style id="register"  name="Register"  map-to="def:type"/>
+  </styles>
+  <default-regex-options case-sensitive="false"/>
+  <definitions>
+    <context id="z80asm">
+      <include>
+        <context id="comment" style-ref="comment" end-at-line-end="true">
+          <start>;</start>
+        </context>
+        <context id="string" style-ref="string" end-at-line-end="true">
+          <start>"</start>
+          <end>"</end>
+        </context>
+        <context id="char" style-ref="string">
+          <match>'.'</match>
+        </context>
+        <context id="label" style-ref="label">
+          <match>^[a-z_.@][a-z0-9_.@]*:?</match>
+        </context>
+        <context id="directive" style-ref="directive">
+          <match>\b\.?(org|equ|defl|db|defb|defm|dm|byte|text|dz|asciz|dc|dw|defw|word|ds|defs|block|space|align|include|incbin|binary|if|ifdef|ifndef|else|endif|rept|endr|macro|endm|end|ent|entry|output|loader|noloader|error|warning|assert|low|high)\b</match>
+        </context>
+        <context id="mnemonic" style-ref="mnemonic">
+          <keyword>adc</keyword>
+          <keyword>add</keyword>
+          <keyword>and</keyword>
+          <keyword>bit</keyword>
+          <keyword>call</keyword>
+          <keyword>ccf</keyword>
+          <keyword>cp</keyword>
+          <keyword>cpd</keyword>
+          <keyword>cpdr</keyword>
+          <keyword>cpi</keyword>
+          <keyword>cpir</keyword>
+          <keyword>cpl</keyword>
+          <keyword>daa</keyword>
+          <keyword>dec</keyword>
+          <keyword>di</keyword>
+          <keyword>djnz</keyword>
+          <keyword>ei</keyword>
+          <keyword>ex</keyword>
+          <keyword>exx</keyword>
+          <keyword>halt</keyword>
+          <keyword>im</keyword>
+          <keyword>in</keyword>
+          <keyword>inc</keyword>
+          <keyword>ind</keyword>
+          <keyword>indr</keyword>
+          <keyword>ini</keyword>
+          <keyword>inir</keyword>
+          <keyword>jp</keyword>
+          <keyword>jr</keyword>
+          <keyword>ld</keyword>
+          <keyword>ldd</keyword>
+          <keyword>lddr</keyword>
+          <keyword>ldi</keyword>
+          <keyword>ldir</keyword>
+          <keyword>neg</keyword>
+          <keyword>nop</keyword>
+          <keyword>or</keyword>
+          <keyword>otdr</keyword>
+          <keyword>otir</keyword>
+          <keyword>out</keyword>
+          <keyword>outd</keyword>
+          <keyword>outi</keyword>
+          <keyword>pop</keyword>
+          <keyword>push</keyword>
+          <keyword>res</keyword>
+          <keyword>ret</keyword>
+          <keyword>reti</keyword>
+          <keyword>retn</keyword>
+          <keyword>rl</keyword>
+          <keyword>rla</keyword>
+          <keyword>rlc</keyword>
+          <keyword>rlca</keyword>
+          <keyword>rld</keyword>
+          <keyword>rr</keyword>
+          <keyword>rra</keyword>
+          <keyword>rrc</keyword>
+          <keyword>rrca</keyword>
+          <keyword>rrd</keyword>
+          <keyword>rst</keyword>
+          <keyword>sbc</keyword>
+          <keyword>scf</keyword>
+          <keyword>set</keyword>
+          <keyword>sla</keyword>
+          <keyword>sll</keyword>
+          <keyword>sl1</keyword>
+          <keyword>sra</keyword>
+          <keyword>srl</keyword>
+          <keyword>sub</keyword>
+          <keyword>xor</keyword>
+        </context>
+        <context id="register" style-ref="register">
+          <match>\b(a|b|c|d|e|h|l|i|r|af|bc|de|hl|sp|ix|iy|ixh|ixl|iyh|iyl|nz|z|nc|po|pe|p|m)\b|af'</match>
+        </context>
+        <context id="number" style-ref="number">
+          <match>([$#][0-9a-f]+|%[01]+|\b0x[0-9a-f]+\b|\b[0-9][0-9a-f]*h\b|\b[0-9]+\b|\$)</match>
+        </context>
+      </include>
+    </context>
+  </definitions>
+</language>

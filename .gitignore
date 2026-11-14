@@ -1,0 +1,31 @@
+obj/
+bin/
+*.png
+!docs/screenshots/*.png
+# never publish: ROMs, tape / disc / snapshot images, programs and
+# recordings made while testing
+roms/
+programs/
+*.rom
+*.tgz
+*.tar
+*.tar.gz
+*.zip
+*.tap
+*.tzx
+*.p
+*.81
+*.p81
+*.z80
+*.sna
+*.szx
+*.azx
+*.rzx
+*.dsk
+*.mdr
+*.scr
+*.udg
+*.z81s
+*.wav
+*.lbl
+examples/*.bin

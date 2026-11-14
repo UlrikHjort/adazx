@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Sinclair BASIC: ZX Spectrum and ZX81 (AdaZX Forge) -->
+<language id="sinclairbasic" name="Sinclair BASIC" version="2.0" _section="Source">
+  <metadata>
+    <property name="globs">*.bas;*.zxb;*.b81</property>
+  </metadata>
+  <styles>
+    <style id="comment"  name="REM"         map-to="def:comment"/>
+    <style id="string"   name="String"      map-to="def:string"/>
+    <style id="keyword"  name="Keyword"     map-to="def:keyword"/>
+    <style id="number"   name="Number"      map-to="def:number"/>
+    <style id="lineno"   name="Line number" map-to="def:preprocessor"/>
+    <style id="escape"   name="Escape"      map-to="def:special-char"/>
+    <style id="pragma"   name="Directive"   map-to="def:preprocessor"/>
+  </styles>
+  <default-regex-options case-sensitive="false"/>
+  <definitions>
+    <context id="sinclairbasic">
+      <include>
+        <context id="pragma" style-ref="pragma" end-at-line-end="true">
+          <start>^#</start>
+        </context>
+        <context id="lineno" style-ref="lineno">
+          <match>^\s*[0-9]+</match>
+        </context>
+        <context id="rem" style-ref="comment" end-at-line-end="true">
+          <start>\bREM</start>
+        </context>
+        <context id="string" style-ref="string" end-at-line-end="true">
+          <start>"</start>
+          <end>"</end>
+          <include>
+            <context id="escape-in-string" style-ref="escape">
+              <match>\\(\{[0-9]+\}|[a-u*`@\\]|[ .':]{2})</match>
+            </context>
+          </include>
+        </context>
+        <context id="number" style-ref="number">
+          <match>\b[0-9]+(\.[0-9]*)?(e[-+]?[0-9]+)?\b</match>
+        </context>
+        <context id="keyword" style-ref="keyword">
+          <match>\b(RANDOMIZE|SCREEN\$|SPECTRUM|CONTINUE|INVERSE|INKEY\$|RESTORE|BRIGHT|CIRCLE|BORDER|LPRINT|RETURN|SCROLL|UNPLOT|VERIFY|FORMAT|CLEAR|PAPER|CLOSE|INPUT|STR\$|POINT|FLASH|LLIST|PRINT|ERASE|PAUSE|MERGE|GOSUB|VAL\$|CHR\$|PEEK|NEXT|THEN|STEP|CONT|PLAY|READ|OPEN|SAVE|STOP|LINE|ATTR|FAST|GOTO|CODE|LIST|BEEP|DRAW|COPY|PLOT|RAND|POKE|LOAD|OVER|DATA|MOVE|SLOW|OUT|CAT|USR|NEW|ABS|INK|CLS|AND|DEF|ASN|BIN|SGN|EXP|INT|DIM|FOR|SUB|RUN|COS|TAB|LEN|SQR|ACS|ATN|LET|TAN|NOT|SIN|VAL|RND|PI|IF|AT|OR|IN|GO|FN|TO|LN)(?![a-z0-9])|&lt;=|&gt;=|&lt;&gt;|\*\*</match>
+        </context>
+      </include>
+    </context>
+  </definitions>
+</language>
