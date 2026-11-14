@@ -63,6 +63,12 @@ for m in 128 plus2 plus2a; do
   bin/adazx --$m --headless 10 --png "$T/g.png" --screen --load-snapshot "$T/s_$m.szx" > "$T/szx_$m.out"
   check "$m: .szx snapshot save / load" "$T/szx_$m.out" "TAPE144125"
 done
+# RZX: record a session, play it back, same screen
+bin/adazx --48 --headless 600 --png "$T/r1.png" --record-rzx "$T/r.rzx" \
+  --type '10 FOR i=1 TO 5: PRINT i,RND: NEXT i\nRUN\n' > /dev/null
+bin/adazx --48 --headless 600 --png "$T/r2.png" "$T/r.rzx" > /dev/null
+if cmp -s "$T/r1.png" "$T/r2.png"; then echo "ok   RZX record and playback"
+else echo "FAIL RZX record and playback"; fail=1; fi
 # ZX81: display, typing, LOAD of .p
 bin/adazx --zx81 --headless 900 --png "$T/h.png" --screen \
   --type-at 200 '10 PRINT "ZX81";2**10\nRUN\n' > "$T/81.out"

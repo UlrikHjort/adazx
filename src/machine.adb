@@ -45,6 +45,7 @@ with Typist;
 with Basic;
 with Asm;
 with Machine.Snapshots;
+with Machine.Replay;
 with P_Files;
 
 package body Machine is
@@ -223,11 +224,16 @@ package body Machine is
    end Bus_Write;
 
    Last_M1_End : Integer := -1;   --  T-state at the end of the last M1
+   RZX_Fetches : Natural := 0;    --  opcode fetches in this frame (RZX)
+   RZX_On : Boolean := False;     --  playing or recording
 
    function Bus_Fetch (Addr : Word) return Byte is
       V : constant Byte := Memory.Read (Addr);
    begin
       Last_M1_End := T;
+      if RZX_On then
+         RZX_Fetches := RZX_Fetches + 1;
+      end if;
       if Model = Config.ZX81 and then (Addr and 16#8000#) /= 0
         and then (V and 16#40#) = 0 and then not CPU.Halted
       then
@@ -310,6 +316,13 @@ package body Machine is
          V := AY.Read;
       else
          V := ULA.Floating_Bus (T);
+      end if;
+      if RZX_On then
+         if Replay.Playing then
+            V := Replay.Next_In;
+         else
+            Replay.Record_In (V);
+         end if;
       end if;
       IO_Post (Port);
       return V;
@@ -422,6 +435,10 @@ package body Machine is
 
    procedure Reset is
    begin
+      if Replay.Playing then
+         Replay.Stop_Playing;
+      end if;
+      RZX_On := Replay.Recording;
       Memory.Clear_RAM;
       Memory.ZX81_RAM_Size := (if ZX81_16K then 16#4000# else 16#400#);
       Memory.ZX81_RAM_2000 := ZX81_RAM_2000;
@@ -1147,6 +1164,10 @@ package body Machine is
 
    procedure Finish_Frame (Length : Natural) is
    begin
+      if RZX_On and then Replay.Recording then
+         Replay.Record_Frame (RZX_Fetches);
+         RZX_Fetches := 0;
+      end if;
       if Model /= Config.ZX81 then
          ULA.End_Frame;
       end if;
@@ -1248,10 +1269,59 @@ package body Machine is
    function Frame_Length return Natural is
      (if Model = Config.ZX81 then ZX81_Frame_T else ULA.Frame_T);
 
+   procedure Start_Replay_Part (Ok : out Boolean);
+
+   --  RZX playback: the frame ends after the recorded number of fetches
+   procedure Run_Replay_Frame is
+      Limit : constant Natural := 4 * Frame_Length;
+   begin
+      while RZX_Fetches < Replay.Frame_Fetches loop
+         if Debugging then
+            if Debug_Before then
+               return;
+            end if;
+            declare
+               Op : constant Byte := Memory.Read (CPU.PC);
+               Old_SP : constant Word := CPU.SP;
+            begin
+               Execute_One;
+               if Debug_After (Op, Old_SP) then
+                  return;
+               end if;
+            end;
+         else
+            Execute_One;
+         end if;
+         if T > Limit then
+            Err := To_Unbounded_String ("RZX playback out of step");
+            Replay.Stop_Playing;
+            RZX_On := False;
+            return;
+         end if;
+      end loop;
+      Finish_Frame (Natural'Max (T, 0));
+      RZX_Fetches := 0;
+      declare
+         New_Part : Boolean;
+         Ok : Boolean;
+      begin
+         Replay.Next_Frame (New_Part);
+         if New_Part then
+            Start_Replay_Part (Ok);
+         elsif not Replay.Playing then
+            RZX_On := False;
+         end if;
+      end;
+   end Run_Replay_Frame;
+
    procedure Run_Frame is
       Len : constant Natural := Frame_Length;
    begin
       if Break_Flag or else not Powered then
+         return;
+      end if;
+      if RZX_On and then Replay.Playing then
+         Run_Replay_Frame;
          return;
       end if;
       while T < Len loop
@@ -1506,9 +1576,77 @@ package body Machine is
       end if;
    end Save_Snapshot;
 
+   procedure Start_Replay_Part (Ok : out Boolean) is
+      Wanted : Model_Type;
+   begin
+      Ok := True;
+      if Replay.Has_Snapshot then
+         declare
+            Kind : constant String := Replay.Snapshot_Kind;
+            Data : constant Byte_Array := Replay.Snapshot_Data;
+         begin
+            Machine.Snapshots.Peek_Model_Data (Kind, Data, Wanted, Ok);
+            if Ok and then Wanted /= Model then
+               Power_On (Wanted, To_String (ROM_Dir_Used), Ok);
+            end if;
+            if Ok then
+               Machine.Snapshots.Load_Data (Kind, Data, Ok);
+            end if;
+            if not Ok then
+               Err := To_Unbounded_String (Machine.Snapshots.Error_Message);
+               Replay.Stop_Playing;
+               RZX_On := False;
+               return;
+            end if;
+         end;
+      end if;
+      T := Replay.Start_T;
+      Restart_Frame_State;
+      RZX_Fetches := 0;
+      RZX_On := True;
+   end Start_Replay_Part;
+
+   procedure Start_RZX_Recording is
+   begin
+      if Model = Config.ZX81 then
+         return;
+      end if;
+      if Replay.Playing then
+         Replay.Stop_Playing;
+      end if;
+      Replay.Start_Recording (Machine.Snapshots.SZX_Data, Natural'Max (T, 0));
+      RZX_Fetches := 0;
+      RZX_On := True;
+   end Start_RZX_Recording;
+
+   procedure Stop_RZX_Recording (Path : String; Ok : out Boolean) is
+   begin
+      Replay.Stop_Recording (Path, Ok);
+      if not Ok then
+         Err := To_Unbounded_String (Replay.Error_Message);
+      end if;
+      RZX_On := Replay.Playing;
+   end Stop_RZX_Recording;
+
+   function RZX_Recording return Boolean is (Replay.Recording);
+   function RZX_Status return String is
+     (if Replay.Recording then "RZX recording"
+      elsif RZX_On then Replay.Progress else "");
+
    procedure Load_Snapshot (Path : String; Ok : out Boolean) is
       Wanted : Model_Type;
    begin
+      if File_Ext.Of_Path (Path) = "rzx" then
+         Replay.Open (Path, Ok);
+         if not Ok then
+            Err := To_Unbounded_String (Replay.Error_Message);
+            return;
+         end if;
+         Start_Replay_Part (Ok);
+         Stage := Idle;
+         Break_Flag := False;
+         return;
+      end if;
       Machine.Snapshots.Peek_Model (Path, Wanted, Ok);
       if not Ok then
          Err := To_Unbounded_String (Machine.Snapshots.Error_Message);

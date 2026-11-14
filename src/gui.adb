@@ -153,6 +153,8 @@ package body GUI is
              else "") else "") &
          (if Machine.Model /= Config.ZX81
           then "  |  joystick " & Joystick_Name else "") &
+         (if Machine.RZX_Status /= "" then "  |  " & Machine.RZX_Status
+          else "") &
          (if Warp then "  |  WARP" else "") &
          (if Paused then "  |  PAUSED" else "") &
          "  |" & FPS'Image & " fps");
@@ -316,9 +318,10 @@ package body GUI is
    end Choose_File;
 
    All_Types : constant Ext_List :=
-     ("tap", "tzx", "z80", "sna", "azx", "p  ", "81 ", "scr", "bas", "asm");
+     ("tap", "tzx", "z80", "szx", "sna", "azx", "rzx", "p  ", "81 ", "scr",
+      "bas", "asm");
    Tape_Types : constant Ext_List := ("tap", "tzx", "p  ", "81 ");
-   Snap_Types : constant Ext_List := ("z80", "sna", "azx");
+   Snap_Types : constant Ext_List := ("z80", "szx", "sna", "azx", "rzx");
 
    procedure Do_Autostart (Path : String) is
       Ok : Boolean;
@@ -458,7 +461,7 @@ package body GUI is
       pragma Unreferenced (Item);
    begin
       Snapshot_Save (Choose_Save_File
-                       ("Save snapshot (.z80, .sna or .azx)",
+                       ("Save snapshot (.z80, .szx, .sna or .azx)",
                         (if Machine.Is_ZX81 then "snapshot.azx"
                          else "snapshot.z80")));
    end On_Save_Snapshot;
@@ -467,7 +470,8 @@ package body GUI is
       pragma Unreferenced (Item);
    begin
       Snapshot_Load (Choose_File ("Load snapshot", Snap_Types,
-                                  "Snapshots (z80, sna, azx)"));
+                                  "Snapshots and recordings (z80, szx, sna, " &
+                                  "azx, rzx)"));
    end On_Load_Snapshot;
 
    procedure On_Quick_Save (Item : access Gtk_Menu_Item_Record'Class) is
@@ -481,6 +485,39 @@ package body GUI is
    begin
       Snapshot_Load (Quick_Snapshot_Path);
    end On_Quick_Load;
+
+   procedure On_Record (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+   begin
+      if Machine.Is_ZX81 then
+         Message ("RZX recordings are for the Spectrum models.");
+      elsif Machine.RZX_Recording then
+         Message ("Already recording (Machine -> Stop RZX recording).");
+      else
+         Machine.Start_RZX_Recording;
+         Update_Status;
+      end if;
+   end On_Record;
+
+   procedure On_Stop_Record (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+      Ok : Boolean;
+   begin
+      if not Machine.RZX_Recording then
+         Message ("No RZX recording is running.");
+         return;
+      end if;
+      declare
+         Path : constant String :=
+           Choose_Save_File ("Save the RZX recording", "recording.rzx");
+      begin
+         Machine.Stop_RZX_Recording (Path, Ok);
+         if not Ok then
+            Message ("Could not write " & Path);
+         end if;
+      end;
+      Update_Status;
+   end On_Stop_Record;
 
    procedure On_Screenshot (Item : access Gtk_Menu_Item_Record'Class) is
       pragma Unreferenced (Item);
@@ -1153,6 +1190,9 @@ package body GUI is
       Add_Item (M_Machine, "_Load snapshot...", On_Load_Snapshot'Access);
       Add_Item (M_Machine, "_Quick save (Alt+S)", On_Quick_Save'Access);
       Add_Item (M_Machine, "Quick l_oad (Alt+L)", On_Quick_Load'Access);
+      Add_Item (M_Machine, "Start RZX _input recording", On_Record'Access);
+      Add_Item (M_Machine, "Stop RZX recording and save...",
+                On_Stop_Record'Access);
       Add_Separator (M_Machine);
       Add_Item (M_Machine, "Paste text (Ctrl+Shift+V)", On_Paste'Access);
       Add_Check (M_Machine, "_Pause", Item_Pause, On_Pause'Access);

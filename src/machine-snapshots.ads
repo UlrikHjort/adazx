@@ -43,6 +43,9 @@ private package Machine.Snapshots is
    --  The same from memory; Kind is "z80", "sna", "szx" or "azx" (as in
    --  the snapshots RZX recordings carry)
 
+   function SZX_Data return Byte_Array;
+   --  The machine as an .szx image (for RZX recordings).
+
    function Error_Message return String;
 
 end Machine.Snapshots;

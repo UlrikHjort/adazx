@@ -42,6 +42,7 @@
 --    --wav FILE         headless: record the sound to a WAV file
 --    --dump FILE        headless: write the 64K memory map after the run
 --    --save-tape FILE   headless: save what was SAVEd (.tap / .p)
+--    --record-rzx FILE  headless: record the run as an RZX input recording
 --    --load-snapshot F / --save-snapshot F   before / after the run
 --    --monitor "CMDS"   headless: monitor commands after the run (; = next)
 --    --break ADDR       headless: stop at a breakpoint (hex)
@@ -84,6 +85,7 @@ procedure AdaZX is
    Save_Tape : Unbounded_String;
    Save_Snap, Load_Snap : Unbounded_String;
    Monitor_Cmds : Unbounded_String;
+   Record_RZX : Unbounded_String;
    type Timed_Text is record
       Frame : Natural := 0;
       Text  : Unbounded_String;
@@ -192,6 +194,8 @@ begin
             Save_Snap := To_Unbounded_String (Next);
          elsif A = "--load-snapshot" then
             Load_Snap := To_Unbounded_String (Next);
+         elsif A = "--record-rzx" then
+            Record_RZX := To_Unbounded_String (Next);
          elsif A = "--dump" then
             Dump := To_Unbounded_String (Next);
          elsif A = "--monitor" then
@@ -277,6 +281,9 @@ begin
             Put_Line ("cannot load snapshot: " & Machine.Error_Message);
          end if;
       end if;
+      if Length (Record_RZX) > 0 then
+         Machine.Start_RZX_Recording;
+      end if;
       for F in 1 .. Headless loop
          if Length (Text) > 0 and then F >= 20
            and then (Machine.At_Prompt or else F >= 300)
@@ -295,6 +302,12 @@ begin
       end loop;
       if Machine.Break_Hit then
          Put_Line ("stopped: " & Machine.Stop_Text);
+      end if;
+      if Length (Record_RZX) > 0 then
+         Machine.Stop_RZX_Recording (To_String (Record_RZX), Ok);
+         if not Ok then
+            Put_Line ("cannot write " & To_String (Record_RZX));
+         end if;
       end if;
       Blit.Save_PNG (To_String (PNG));
       if Length (Wav) > 0 then

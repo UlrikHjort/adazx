@@ -12,7 +12,7 @@ around the running machine. It is the Sinclair sibling of AdaC64
                              # libgtksourceview-4 (Forge's editor)
     bin/adazx                # 48K Spectrum (or the model used last time)
     bin/adazx --128          # also --plus2, --plus2a, --plus3, --zx81
-    bin/adazx game.tzx       # autostart (also .tap .z80 .sna .azx .p .81
+    bin/adazx game.tzx       # autostart (also .tap .z80 .szx .sna .azx .rzx .p .81
                              # .scr .bas .b81 .asm)
     bin/adazx-forge          # Forge as the main window
     make tests               # Z80 core, assembler, machine tests
@@ -28,7 +28,7 @@ Options: `--roms DIR`, `--1k` (ZX81 without the 16K pack), `--ram2000`
 `--attach FILE`, and for testing `--headless N` (run N frames, save
 `shot.png`), `--png FILE`, `--type TEXT` (`\n` = ENTER), `--type-at FRAME
 TEXT`, `--screen` (print the screen as text), `--wav FILE`, `--dump FILE`,
-`--save-tape FILE`, `--load-snapshot` / `--save-snapshot FILE`, `--break
+`--save-tape FILE`, `--record-rzx FILE`, `--load-snapshot` / `--save-snapshot FILE`, `--break
 ADDR`, `--monitor "r;d 8000;m 5c00"`. Command-line tools: `--basic SRC`
 (tokenise into a .tap, or a .p with `--zx81`), `--list FILE` (list the
 BASIC in a .tap / .p), `--asm SRC`.
@@ -67,7 +67,7 @@ Use a copy you are entitled to use, and do not pass it on with AdaZX.
 | Memory | 128K paging (&7FFD), +2A / +3 paging and all-RAM modes (&1FFD). |
 | Sound | Beeper and MIC, AY-3-8912 (128K models: tones, noise, envelopes), the tape signal while loading; PulseAudio, which also paces the emulation. |
 | Tape | TAP and TZX (standard, turbo, pure tone, pulse sequences, pure data, direct recording, generalized data, CSW recordings (RLE and Z-RLE), pauses, loops, jumps, stop-if-48K) played as the EAR signal in real time (turbo and custom loaders work) or flash-loaded through a ROM trap; SAVE is recorded and can be written as a .tap. |
-| Snapshots | .z80 (v1-v3), .szx (ZX-State v1.4, zlib-compressed pages) and .sna load and save; .azx (AdaZX) holds the complete state of every model, ZX81 included. |
+| Snapshots | .z80 (v1-v3), .szx (ZX-State v1.4, zlib-compressed pages) and .sna load and save; .azx (AdaZX) holds the complete state of every model, ZX81 included. RZX input recordings: playback (embedded .szx / .z80 / .sna snapshots, several parts) and recording (Machine menu or `--record-rzx FILE`). |
 | Joysticks | Kempston, Sinclair 1 / 2, Cursor; keypad, cursor keys or a game controller. |
 | ZX81 | Display generated as on the real machine: the CPU executes the display file above 32K, the ULA turns characters into NOPs and fetches their pattern (I register, line counter), HSYNC / NMI generator / VSYNC from the ports, INT from A6 during refresh; SLOW and FAST mode, WRX hi-res (pattern from RAM via the refresh address), 1K or 16K, optional 8K RAM at &2000. .p files load through the ROM's LOAD (trap), SAVE writes a .p. |
 

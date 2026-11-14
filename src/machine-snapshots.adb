@@ -916,6 +916,8 @@ package body Machine.Snapshots is
          Err := To_Unbounded_String ("damaged ." & Kind & " snapshot");
    end Peek_Model_Data;
 
+   function SZX_Data return Byte_Array is (Save_SZX);
+
    procedure Load (Path : String; Ok : out Boolean) is
    begin
       Load_Data (Ext (Path), Read_File (Path), Ok);

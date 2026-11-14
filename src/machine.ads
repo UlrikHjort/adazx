@@ -115,9 +115,17 @@ package Machine is
    Auto_Play : Boolean := True;
    --  Start the tape when the ROM's loader runs.
 
-   --  Snapshots: .z80 / .sna (Spectrum), .azx (AdaZX, all models)
+   --  Snapshots: .z80 / .szx / .sna (Spectrum), .azx (AdaZX, all models),
+   --  .rzx (an input recording: played back from its snapshot)
    procedure Save_Snapshot (Path : String; Ok : out Boolean);
    procedure Load_Snapshot (Path : String; Ok : out Boolean);
+
+   --  RZX input recordings (.rzx is played through Load_Snapshot / Autostart)
+   procedure Start_RZX_Recording;
+   procedure Stop_RZX_Recording (Path : String; Ok : out Boolean);
+   --  Path = "": discard the recording.
+   function RZX_Recording return Boolean;
+   function RZX_Status return String;   --  "RZX frame n / m" during playback
 
    --  Debugger
    procedure Step_Instruction;
