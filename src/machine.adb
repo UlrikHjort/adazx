@@ -40,6 +40,8 @@ with AY;
 with Keyboard;
 use type Keyboard.Joy_Type;
 with Tape;
+with DSK;
+with FDC765;
 with Disasm;
 with Typist;
 with Basic;
@@ -314,6 +316,10 @@ package body Machine is
          V := Keyboard.Kempston_Bits;
       elsif Is_128 and then (Port and 16#C002#) = 16#C000# then
          V := AY.Read;
+      elsif Model = Config.Plus3 and then (Port and 16#F002#) = 16#2000# then
+         V := FDC765.Read_Status;
+      elsif Model = Config.Plus3 and then (Port and 16#F002#) = 16#3000# then
+         V := FDC765.Read_Data;
       else
          V := ULA.Floating_Bus (T);
       end if;
@@ -361,6 +367,10 @@ package body Machine is
             Memory.Write_7FFD (Value);
          elsif Is_Plus3_Type and then (Port and 16#F002#) = 16#1000# then
             Memory.Write_1FFD (Value);
+            FDC765.Motor := (Value and 8) /= 0;
+         elsif Model = Config.Plus3 and then (Port and 16#F002#) = 16#3000#
+         then
+            FDC765.Write_Data (Value);
          elsif (Port and 16#C002#) = 16#C000# then
             AY.Select_Register (Value);
          elsif (Port and 16#C002#) = 16#8000# then
@@ -446,6 +456,8 @@ package body Machine is
       CPU.Reset;
       T := 0;
       AY.Reset;
+      FDC765.Reset;
+      FDC765.Motor := False;
       Restart_Frame_State;
       Last_FE := 0;
       ULA.Border_Colour := 7;
@@ -728,8 +740,11 @@ package body Machine is
          when Idle => null;
          when Wait_Prompt =>
             if Is_128 then
-               --  the 128K menu: its first entry loads from tape
-               if Stage_Frames >= 90 then
+               --  the 128K menu: its first entry loads from tape (on the
+               --  +3 from the disc in drive A, else from tape)
+               if (Stage_Frames mod 10 = 0 and then Screen_Contains ("BASIC"))
+                 or else Stage_Frames > 300
+               then
                   Keyboard.Type_Combo ((Key => Keyboard.K_Enter,
                                         others => False));
                   Stage := Wait_Loaded;
@@ -862,6 +877,23 @@ package body Machine is
       end if;
       if Basic.Is_Source (Path) or else Asm.Is_Source (Path) then
          Start_Source (Path, Ok);
+         return;
+      end if;
+      if Ext = "dsk" then
+         if Model /= Config.Plus3 then
+            Power_On (Config.Plus3, To_String (ROM_Dir_Used), Ok);
+            if not Ok then
+               return;
+            end if;
+         end if;
+         Insert_Disc (Path, Ok);
+         if not Ok then
+            return;
+         end if;
+         Reset;
+         Prompt_Frames := 0;
+         Stage := Wait_Prompt;
+         Stage_Frames := 0;
          return;
       end if;
       if Is_ZX81_File /= (Model = Config.ZX81) then
@@ -1670,7 +1702,35 @@ package body Machine is
 
    procedure Shutdown is
    begin
-      null;
+      DSK.Flush_All;
    end Shutdown;
+
+   procedure Insert_Disc (Path : String; Ok : out Boolean;
+                          Drive : Natural := 0) is
+   begin
+      DSK.Insert (DSK.Drive (Drive mod 2), Path, Ok);
+      if not Ok then
+         Err := To_Unbounded_String (DSK.Error_Message);
+      end if;
+   end Insert_Disc;
+
+   procedure Eject_Disc (Drive : Natural := 0) is
+   begin
+      DSK.Eject (DSK.Drive (Drive mod 2));
+   end Eject_Disc;
+
+   function Disc_Name (Drive : Natural := 0) return String is
+     (DSK.Name (DSK.Drive (Drive mod 2)));
+
+   procedure Create_Disc (Path : String; Ok : out Boolean) is
+   begin
+      DSK.Create (Path, Ok);
+      if not Ok then
+         Err := To_Unbounded_String (DSK.Error_Message);
+      end if;
+   end Create_Disc;
+
+   function Disc_Active return Boolean is
+     (FDC765.Motor and then Model = Config.Plus3);
 
 end Machine;

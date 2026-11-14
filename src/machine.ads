@@ -115,6 +115,15 @@ package Machine is
    Auto_Play : Boolean := True;
    --  Start the tape when the ROM's loader runs.
 
+   --  +3 discs (.dsk) in drive A (0) / B (1)
+   procedure Insert_Disc (Path : String; Ok : out Boolean;
+                          Drive : Natural := 0);
+   procedure Eject_Disc (Drive : Natural := 0);
+   function Disc_Name (Drive : Natural := 0) return String;
+   procedure Create_Disc (Path : String; Ok : out Boolean);
+   --  A blank, formatted +3 disc image.
+   function Disc_Active return Boolean;   --  the drive is working (LED)
+
    --  Snapshots: .z80 / .szx / .sna (Spectrum), .azx (AdaZX, all models),
    --  .rzx (an input recording: played back from its snapshot)
    procedure Save_Snapshot (Path : String; Ok : out Boolean);

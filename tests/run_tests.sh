@@ -69,6 +69,16 @@ bin/adazx --48 --headless 600 --png "$T/r1.png" --record-rzx "$T/r.rzx" \
 bin/adazx --48 --headless 600 --png "$T/r2.png" "$T/r.rzx" > /dev/null
 if cmp -s "$T/r1.png" "$T/r2.png"; then echo "ok   RZX record and playback"
 else echo "FAIL RZX record and playback"; fail=1; fi
+# +3 discs: SAVE, CAT, LOAD in a new session, boot with the Loader
+rm -f "$T/d.dsk"
+bin/adazx --new-disc "$T/d.dsk"
+printf '10 SAVE "disk" LINE 20\n20 PRINT "BOOTED";FN a()\n30 DEF FN a()=42\n' > "$T/boot.bas"
+bin/adazx --plus3 --disc "$T/d.dsk" --headless 700 --png "$T/x.png" "$T/boot.bas" > /dev/null
+printf '10 CAT\n' > "$T/cat.bas"
+bin/adazx --plus3 --disc "$T/d.dsk" --headless 600 --png "$T/x.png" --screen "$T/cat.bas" > "$T/cat.out"
+check "+3 disc: SAVE and CAT" "$T/cat.out" "DISK    .      1K"
+bin/adazx --headless 700 --png "$T/x.png" --screen "$T/d.dsk" > "$T/boot.out"
+check "+3 disc: boot with the Loader" "$T/boot.out" "BOOTED42"
 # ZX81: display, typing, LOAD of .p
 bin/adazx --zx81 --headless 900 --png "$T/h.png" --screen \
   --type-at 200 '10 PRINT "ZX81";2**10\nRUN\n' > "$T/81.out"

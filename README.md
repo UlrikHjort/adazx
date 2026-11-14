@@ -1,6 +1,6 @@
 # AdaZX
 
-A ZX Spectrum (48K, 128K, +2, +2A, +3 without disc) and Sinclair ZX81
+A ZX Spectrum (48K, 128K, +2, +2A, +3 with its disc drive) and Sinclair ZX81
 emulator written in Ada 2012 with GtkAda, with **Forge**: a Z80 assembler
 IDE, Sinclair BASIC editor, source-level debugger and graphics editors
 around the running machine. It is the Sinclair sibling of AdaC64
@@ -23,13 +23,13 @@ ZX81, the "Tape Loader" menu entry on the 128K models. `.bas` / `.b81`
 files are tokenised and RUN; `.asm` files are assembled and started with
 `RANDOMIZE USR` (Spectrum) or put into a REM line at 16514 (ZX81).
 
-Options: `--roms DIR`, `--1k` (ZX81 without the 16K pack), `--ram2000`
+Options: `--roms DIR`, `--disc FILE` (+3 drive A), `--1k` (ZX81 without the 16K pack), `--ram2000`
 (ZX81 8K RAM at &2000), `--issue2`, `--real-tape` (no flash loading),
 `--attach FILE`, and for testing `--headless N` (run N frames, save
 `shot.png`), `--png FILE`, `--type TEXT` (`\n` = ENTER), `--type-at FRAME
 TEXT`, `--screen` (print the screen as text), `--wav FILE`, `--dump FILE`,
 `--save-tape FILE`, `--record-rzx FILE`, `--load-snapshot` / `--save-snapshot FILE`, `--break
-ADDR`, `--monitor "r;d 8000;m 5c00"`. Command-line tools: `--basic SRC`
+ADDR`, `--monitor "r;d 8000;m 5c00"`. Command-line tools: `--new-disc FILE` (blank +3 disc), `--basic SRC`
 (tokenise into a .tap, or a .p with `--zx81`), `--list FILE` (list the
 BASIC in a .tap / .p), `--asm SRC`.
 
@@ -65,6 +65,7 @@ Use a copy you are entitled to use, and do not pass it on with AdaZX.
 | Z80 | All documented and undocumented instructions and flags, MEMPTR and Q, IM 0/1/2, NMI, HALT. Every memory and I/O cycle happens at its own T-state, so contention is applied exactly: passes all 1356 tests of Fuse's per-cycle suite (bus events and timings identical) and ZEXALL. |
 | ULA (Spectrum) | 48K / 128K / +2A timings (69888 / 70908 T-states), memory and I/O contention, the picture drawn behind the CPU in 8-pixel steps (border and multicolour effects appear where they happen), FLASH, floating bus. |
 | Memory | 128K paging (&7FFD), +2A / +3 paging and all-RAM modes (&1FFD). |
+| +3 disc | uPD765A controller (read / write / deleted data, read track, read ID, format, seek, sense status; +3DOS polling, no terminal count) with two drives; .dsk images (standard and extended, sector status flags kept for copy protection) written back as extended DSK; blank formatted discs (File menu or `--new-disc`); a .dsk autostarts through the menu's Loader. |
 | Sound | Beeper and MIC, AY-3-8912 (128K models: tones, noise, envelopes), the tape signal while loading; PulseAudio, which also paces the emulation. |
 | Tape | TAP and TZX (standard, turbo, pure tone, pulse sequences, pure data, direct recording, generalized data, CSW recordings (RLE and Z-RLE), pauses, loops, jumps, stop-if-48K) played as the EAR signal in real time (turbo and custom loaders work) or flash-loaded through a ROM trap; SAVE is recorded and can be written as a .tap. |
 | Snapshots | .z80 (v1-v3), .szx (ZX-State v1.4, zlib-compressed pages) and .sna load and save; .azx (AdaZX) holds the complete state of every model, ZX81 included. RZX input recordings: playback (embedded .szx / .z80 / .sna snapshots, several parts) and recording (Machine menu or `--record-rzx FILE`). |
@@ -112,7 +113,7 @@ Tools:
 
 ## Not (yet) emulated
 
-The +3's disc drive (the +3 runs like a +2A), Interface 1 / Microdrives,
+Interface 1 / Microdrives,
 the ZX80, ZX81 sound boards. The ZX81
 pseudo hi-res of some programs (sz81's tetris title) shows thin
 two-scanline offsets that have not been checked against a reference.
@@ -124,6 +125,7 @@ two-scanline offsets that have not been checked against a reference.
                        snapshots (machine-snapshots)
     src/memory.*       paging, contention map         src/ula.*   picture
     src/sound.*, ay.*  beeper / AY mixing              src/tape.*  TAP/TZX
+    src/fdc765.*, dsk.* +3 disc controller, .dsk images
     src/p_files.*      ZX81 .p                         src/keyboard.* typist.*
     src/asm.*          assembler                       src/disasm.* monitor*.*
     src/basic.*        Sinclair BASIC                  src/tap_files.*

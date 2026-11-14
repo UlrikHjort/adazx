@@ -34,6 +34,8 @@
 --    --issue2           48K issue 2 keyboard (EAR bit)
 --    --real-tape        no flash loading: load tapes in real time
 --    --attach FILE      insert a tape without starting it
+--    --disc FILE        insert a .dsk in drive A of the +3
+--    --new-disc FILE    create a blank, formatted +3 .dsk and exit
 --    --headless N       run N frames without GUI, then save a screenshot
 --    --png FILE         screenshot file for headless mode (default shot.png)
 --    --type TEXT        type TEXT at the BASIC prompt (\n = ENTER)
@@ -86,6 +88,7 @@ procedure AdaZX is
    Save_Snap, Load_Snap : Unbounded_String;
    Monitor_Cmds : Unbounded_String;
    Record_RZX : Unbounded_String;
+   Disc_A : Unbounded_String;
    type Timed_Text is record
       Frame : Natural := 0;
       Text  : Unbounded_String;
@@ -194,6 +197,15 @@ begin
             Save_Snap := To_Unbounded_String (Next);
          elsif A = "--load-snapshot" then
             Load_Snap := To_Unbounded_String (Next);
+         elsif A = "--disc" then
+            Disc_A := To_Unbounded_String (Next);
+         elsif A = "--new-disc" then
+            Machine.Create_Disc (Next, Ok);
+            if not Ok then
+               Put_Line ("cannot create " & Argument (I));
+            end if;
+            Set_Exit_Status (if Ok then 0 else 1);
+            return;
          elsif A = "--record-rzx" then
             Record_RZX := To_Unbounded_String (Next);
          elsif A = "--dump" then
@@ -261,6 +273,13 @@ begin
       end if;
       if Length (Wav) > 0 then
          Sound.Sink := Wav_Sink.Push'Access;
+      end if;
+      if Length (Disc_A) > 0 then
+         Machine.Insert_Disc (To_String (Disc_A), Ok);
+         if not Ok then
+            Put_Line ("cannot insert " & To_String (Disc_A) & ": " &
+                        Machine.Error_Message);
+         end if;
       end if;
       if Length (Attach_File) > 0 then
          Machine.Attach_Tape (To_String (Attach_File), Ok);

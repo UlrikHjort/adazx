@@ -151,6 +151,13 @@ package body GUI is
              then " (playing, block" & Tape.Current_Block'Image & "/" &
                Tape.Block_Count'Image & ")"
              else "") else "") &
+         (if Machine.Model = Config.Plus3
+          then "  |  A: " & (if Machine.Disc_Name (0) = "" then "-"
+                             else Short (Machine.Disc_Name (0))) &
+            (if Machine.Disc_Name (1) /= ""
+             then "  B: " & Short (Machine.Disc_Name (1)) else "") &
+            (if Machine.Disc_Active then " [*]" else " [ ]")
+          else "") &
          (if Machine.Model /= Config.ZX81
           then "  |  joystick " & Joystick_Name else "") &
          (if Machine.RZX_Status /= "" then "  |  " & Machine.RZX_Status
@@ -318,8 +325,8 @@ package body GUI is
    end Choose_File;
 
    All_Types : constant Ext_List :=
-     ("tap", "tzx", "z80", "szx", "sna", "azx", "rzx", "p  ", "81 ", "scr",
-      "bas", "asm");
+     ("tap", "tzx", "dsk", "z80", "szx", "sna", "azx", "rzx", "p  ", "81 ",
+      "scr", "bas", "asm");
    Tape_Types : constant Ext_List := ("tap", "tzx", "p  ", "81 ");
    Snap_Types : constant Ext_List := ("z80", "szx", "sna", "azx", "rzx");
 
@@ -366,6 +373,68 @@ package body GUI is
          Update_Status;
       end if;
    end On_Attach_Tape;
+
+   procedure Insert_Disc (Drive : Natural) is
+      Path : constant String :=
+        Choose_File ("Insert disc in drive " & (if Drive = 0 then "A" else "B"),
+                     (1 => "dsk"), "+3 discs (.dsk)");
+      Ok : Boolean;
+   begin
+      if Path /= "" then
+         if Machine.Model /= Config.Plus3 then
+            Message ("Discs are used by the Spectrum +3 (Machine menu).");
+         end if;
+         Machine.Insert_Disc (Path, Ok, Drive);
+         if not Ok then
+            Message ("Cannot use " & Path & ASCII.LF & Machine.Error_Message);
+         end if;
+         Update_Status;
+      end if;
+   end Insert_Disc;
+
+   procedure On_Disc_A (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+   begin
+      Insert_Disc (0);
+   end On_Disc_A;
+
+   procedure On_Disc_B (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+   begin
+      Insert_Disc (1);
+   end On_Disc_B;
+
+   procedure On_Eject_A (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+   begin
+      Machine.Eject_Disc (0);
+      Update_Status;
+   end On_Eject_A;
+
+   procedure On_Eject_B (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+   begin
+      Machine.Eject_Disc (1);
+      Update_Status;
+   end On_Eject_B;
+
+   procedure On_New_Disc (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+      Path : constant String :=
+        Choose_Save_File ("Create a blank +3 disc", "blank.dsk");
+      Ok : Boolean;
+   begin
+      if Path /= "" then
+         Machine.Create_Disc (Path, Ok);
+         if Ok then
+            Machine.Insert_Disc (Path, Ok, 0);
+         end if;
+         if not Ok then
+            Message ("Could not create " & Path);
+         end if;
+         Update_Status;
+      end if;
+   end On_New_Disc;
 
    procedure On_Play (Item : access Gtk_Menu_Item_Record'Class) is
       pragma Unreferenced (Item);
@@ -824,6 +893,8 @@ package body GUI is
             On_Autostart (null);
          elsif Is_Char ('t') then
             On_Attach_Tape (null);
+         elsif Is_Char ('d') then
+            On_Disc_A (null);
          elsif Is_Char ('p') then
             if Machine.Tape_Motor then
                Machine.Tape_Stop;
@@ -1150,6 +1221,13 @@ package body GUI is
       M_File := Add_Menu (Bar, "_File");
       Add_Item (M_File, "_Autostart tape / snapshot / program... (Alt+A)",
                 On_Autostart'Access);
+      Add_Separator (M_File);
+      Add_Item (M_File, "Insert +3 _disc in drive A (.dsk)... (Alt+D)",
+                On_Disc_A'Access);
+      Add_Item (M_File, "Insert +3 disc in drive B...", On_Disc_B'Access);
+      Add_Item (M_File, "Eject drive A", On_Eject_A'Access);
+      Add_Item (M_File, "Eject drive B", On_Eject_B'Access);
+      Add_Item (M_File, "_New blank +3 disc...", On_New_Disc'Access);
       Add_Separator (M_File);
       Add_Item (M_File, "Insert _tape (.tap .tzx .p)... (Alt+T)",
                 On_Attach_Tape'Access);
