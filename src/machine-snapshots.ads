@@ -24,6 +24,7 @@
 -- ***************************************************************************
 
 --  Snapshot files: .z80 (versions 1 - 3, 48K / 128K / +2 / +2A / +3),
+--  .szx (Fuse's ZX-State),
 --  .sna (48K and 128K) and .azx, AdaZX's own format holding the complete
 --  state of any model (including the ZX81).
 
@@ -35,6 +36,12 @@ private package Machine.Snapshots is
    procedure Load (Path : String; Ok : out Boolean);
    --  The machine must already be the snapshot's model.
    procedure Save (Path : String; Ok : out Boolean);
+
+   procedure Peek_Model_Data (Kind : String; D : Byte_Array;
+                              M : out Model_Type; Ok : out Boolean);
+   procedure Load_Data (Kind : String; D : Byte_Array; Ok : out Boolean);
+   --  The same from memory; Kind is "z80", "sna", "szx" or "azx" (as in
+   --  the snapshots RZX recordings carry)
 
    function Error_Message return String;
 

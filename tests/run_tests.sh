@@ -57,6 +57,12 @@ check ".z80 snapshot save / load" "$T/z80.out" "TAPE144125"
 bin/adazx --48 --headless 300 --png "$T/f.png" --save-snapshot "$T/s.sna" "$T/t.tap" > /dev/null
 bin/adazx --48 --headless 10 --png "$T/g.png" --screen --load-snapshot "$T/s.sna" > "$T/sna.out"
 check ".sna snapshot save / load" "$T/sna.out" "TAPE144125"
+for m in 128 plus2 plus2a; do
+  bin/adazx --$m --headless 400 --png "$T/f.png" --screen --save-snapshot "$T/s_$m.szx" "$T/t.bas" > "$T/run_$m.out"
+  check "$m: BASIC through the menu" "$T/run_$m.out" "TAPE144125"
+  bin/adazx --$m --headless 10 --png "$T/g.png" --screen --load-snapshot "$T/s_$m.szx" > "$T/szx_$m.out"
+  check "$m: .szx snapshot save / load" "$T/szx_$m.out" "TAPE144125"
+done
 # ZX81: display, typing, LOAD of .p
 bin/adazx --zx81 --headless 900 --png "$T/h.png" --screen \
   --type-at 200 '10 PRINT "ZX81";2**10\nRUN\n' > "$T/81.out"

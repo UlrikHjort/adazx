@@ -619,8 +619,8 @@ package body Machine is
 
    Prompt_Frames : Natural := 0;   --  frames in a row spent waiting
 
-   Plus3_Wait_From : constant Word := 16#0000#;
-   Plus3_Wait_To   : constant Word := 16#0000#;
+   Plus3_Wait_From : constant Word := 16#1872#;   --  +3 editor key wait
+   Plus3_Wait_To   : constant Word := 16#1878#;
 
    function In_Key_Wait return Boolean is
       PC : constant Word := CPU.PC;
@@ -636,8 +636,10 @@ package body Machine is
             if ROM = Memory.Basic48_ROM then
                return PC in 16#10A8# .. 16#111C# | 16#15D4# .. 16#15F6#
                  | 16#0F38# .. 16#0F80#;
-            elsif ROM = 0 and then Model in Config.ZX128 | Config.Plus2 then
+            elsif ROM = 0 and then Model = Config.ZX128 then
                return PC in 16#3680# .. 16#3686#;    --  128 editor key wait
+            elsif ROM = 0 and then Model = Config.Plus2 then
+               return PC in 16#36A6# .. 16#36AC#;
             elsif ROM = 0 then
                return PC in Plus3_Wait_From .. Plus3_Wait_To;
             end if;
@@ -664,6 +666,7 @@ package body Machine is
    type Auto_Stage is (Idle, Wait_Prompt, Typing_Load, Wait_Loaded,
                        Wait_Inject);
    Stage : Auto_Stage := Idle;
+   Menu_Frame : Integer := -1;      --  when the 128K menu choice was made
    Stage_Frames : Natural := 0;
    Auto_Run_After_Load : Boolean := False;
 
@@ -739,12 +742,17 @@ package body Machine is
          when Wait_Inject =>
             if Is_128 and then not Memory.Special_Paging then
                --  choose "128 BASIC" (+3 BASIC) from the menu
-               if Stage_Frames = 80 then
+               if Menu_Frame < 0 and then Stage_Frames mod 10 = 0
+                 and then Screen_Contains ("BASIC")
+               then
                   Keyboard.Type_Combo ((Key => Keyboard.Digit ('6'),
                                         Caps => True, Sym => False));
                   Keyboard.Type_Combo ((Key => Keyboard.K_Enter,
                                         others => False));
-               elsif Stage_Frames >= 130 and then At_Prompt then
+                  Menu_Frame := Stage_Frames;
+               elsif Menu_Frame >= 0 and then Stage_Frames > Menu_Frame + 40
+                 and then At_Prompt
+               then
                   Do_Inject;
                   Stage := Idle;
                end if;
@@ -772,6 +780,7 @@ package body Machine is
       if With_Reset then
          Reset;
          Prompt_Frames := 0;
+         Menu_Frame := -1;
          Stage := Wait_Inject;
          Stage_Frames := 0;
       else
@@ -830,7 +839,7 @@ package body Machine is
         or else Ext = "p81";
    begin
       Ok := True;
-      if Ext in "z80" | "sna" | "azx" | "szx" then
+      if Ext in "z80" | "sna" | "azx" | "szx" | "rzx" then
          Load_Snapshot (Path, Ok);
          return;
       end if;

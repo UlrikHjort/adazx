@@ -33,6 +33,8 @@ with Memory;
 with ULA;
 with AY;
 with Tstates;
+with Interfaces.C;
+with System;
 
 package body Machine.Snapshots is
 
@@ -102,25 +104,8 @@ package body Machine.Snapshots is
 
    procedure Peek_Model (Path : String; M : out Model_Type; Ok : out Boolean)
    is
-      E : constant String := Ext (Path);
    begin
-      Ok := True;
-      if E = "sna" then
-         M := (if Natural (Ada.Directories.Size (Path)) = 49179
-               then Config.ZX48 else Config.ZX128);
-      elsif E = "z80" then
-         M := Z80_Model (Read_File (Path));
-      elsif E = "azx" then
-         declare
-            D : constant Byte_Array := Read_File (Path);
-         begin
-            Ok := D'Length > 5 and then D (0 .. 3) = (65, 90, 88, 49);
-            M := Model_Type'Val (Natural (D (4)));
-         end;
-      else
-         Ok := False;
-         Err := To_Unbounded_String ("unknown snapshot type ." & E);
-      end if;
+      Peek_Model_Data (Ext (Path), Read_File (Path), M, Ok);
    exception
       when others =>
          Ok := False;
@@ -646,21 +631,294 @@ package body Machine.Snapshots is
    end Load_AZX;
 
    ---------------------------------------------------------------------
+   --  .szx (ZX-State, as written by Fuse and others)
+   ---------------------------------------------------------------------
 
-   procedure Load (Path : String; Ok : out Boolean) is
-      E : constant String := Ext (Path);
-      D : constant Byte_Array := Read_File (Path);
+   function Z_Uncompress (Dest : System.Address;
+                          Dest_Len : access Interfaces.C.unsigned_long;
+                          Source : System.Address;
+                          Source_Len : Interfaces.C.unsigned_long)
+                          return Interfaces.C.int;
+   pragma Import (C, Z_Uncompress, "uncompress");
+   function Z_Compress (Dest : System.Address;
+                        Dest_Len : access Interfaces.C.unsigned_long;
+                        Source : System.Address;
+                        Source_Len : Interfaces.C.unsigned_long)
+                        return Interfaces.C.int;
+   pragma Import (C, Z_Compress, "compress");
+
+   function SZX_Model (Id : Byte) return Model_Type is
+     (case Id is
+         when 2 => Config.ZX128,
+         when 3 => Config.Plus2,
+         when 4 => Config.Plus2A,
+         when 5 | 6 => Config.Plus3,
+         when others => Config.ZX48);
+
+   function Tag (D : Byte_Array; I : Natural) return String is
+     (Character'Val (D (I)) & Character'Val (D (I + 1)) &
+      Character'Val (D (I + 2)) & Character'Val (D (I + 3)));
+
+   function L32 (D : Byte_Array; I : Natural) return Natural is
+     (Natural (D (I)) + 256 * Natural (D (I + 1))
+      + 65536 * Natural (D (I + 2)) + 16777216 * Natural (D (I + 3) and 127));
+
+   procedure Load_SZX (D : Byte_Array; Ok : out Boolean) is
+      P : Natural := D'First + 8;
+      Border : Natural := 7;
+      P7, P1 : Byte := 0;
+      use type Interfaces.C.int;
    begin
-      if E = "sna" then
+      Ok := D'Length >= 8 and then Tag (D, D'First) = "ZXST";
+      if not Ok then
+         Err := To_Unbounded_String ("not an .szx snapshot");
+         return;
+      end if;
+      Memory.Reset_Paging;
+      AY.Reset;
+      while P + 7 <= D'Last loop
+         declare
+            Id : constant String := Tag (D, P);
+            Size : constant Natural := L32 (D, P + 4);
+            B : constant Natural := P + 8;
+         begin
+            exit when B + Size - 1 > D'Last;
+            if Id = "Z80R" and then Size >= 37 then
+               declare
+                  function RW (I : Natural) return Word is
+                    (Make_Word (D (B + I), D (B + I + 1)));
+               begin
+                  CPU.F := D (B); CPU.A := D (B + 1);
+                  CPU.C := D (B + 2); CPU.B := D (B + 3);
+                  CPU.E := D (B + 4); CPU.D := D (B + 5);
+                  CPU.L := D (B + 6); CPU.H := D (B + 7);
+                  CPU.F2 := D (B + 8); CPU.A2 := D (B + 9);
+                  CPU.C2 := D (B + 10); CPU.B2 := D (B + 11);
+                  CPU.E2 := D (B + 12); CPU.D2 := D (B + 13);
+                  CPU.L2 := D (B + 14); CPU.H2 := D (B + 15);
+                  CPU.IX := RW (16); CPU.IY := RW (18);
+                  CPU.SP := RW (20); CPU.PC := RW (22);
+                  CPU.I := D (B + 24); CPU.R := D (B + 25);
+                  CPU.IFF1 := D (B + 26) /= 0;
+                  CPU.IFF2 := D (B + 27) /= 0;
+                  CPU.IM := Natural (D (B + 28)) mod 3;
+                  CPU.MEMPTR := RW (35);
+               end;
+            elsif Id = "SPCR" and then Size >= 4 then
+               Border := Natural (D (B) and 7);
+               P7 := D (B + 1);
+               P1 := D (B + 2);
+            elsif Id = "AY" & ASCII.NUL & ASCII.NUL and then Size >= 18 then
+               for K in 0 .. 15 loop
+                  AY.Select_Register (Byte (K));
+                  AY.Write (D (B + 2 + K));
+               end loop;
+               AY.Select_Register (D (B + 1));
+            elsif Id = "RAMP" and then Size >= 3 then
+               declare
+                  Flags : constant Natural := Natural (D (B));
+                  Page : constant Natural := Natural (D (B + 2));
+                  Block : Byte_Array (0 .. 16#3FFF#) := (others => 0);
+               begin
+                  if Flags mod 2 = 1 then
+                     declare
+                        Len : aliased Interfaces.C.unsigned_long :=
+                          Block'Length;
+                     begin
+                        if Z_Uncompress
+                          (Block'Address, Len'Access, D (B + 3)'Address,
+                           Interfaces.C.unsigned_long (Size - 3)) /= 0
+                        then
+                           Ok := False;
+                           Err := To_Unbounded_String
+                             ("damaged memory page in the .szx snapshot");
+                           return;
+                        end if;
+                     end;
+                  else
+                     Block (0 .. Natural'Min (16#4000#, Size - 3) - 1) :=
+                       D (B + 3 .. B + 2 + Natural'Min (16#4000#, Size - 3));
+                  end if;
+                  if Page <= 7 then
+                     Set_Bank (Page, Block);
+                  end if;
+               end;
+            end if;
+            P := B + Size;
+         end;
+      end loop;
+      if Config.Is_128 then
+         Memory.Paging_Locked := False;
+         if Config.Is_Plus3_Type then
+            Memory.Write_1FFD (P1);
+         end if;
+         Memory.Write_7FFD (P7);
+      end if;
+      After_Load (Border);
+   end Load_SZX;
+
+   function Save_SZX return Byte_Array is
+      Out_Buf : Byte_Array (0 .. 8 * 16#4100# + 512);
+      N : Natural := 0;
+      procedure Put (B : Byte) is
+      begin
+         Out_Buf (N) := B;
+         N := N + 1;
+      end Put;
+      procedure Put_W (V : Word) is
+      begin
+         Put (Lo (V));
+         Put (Hi (V));
+      end Put_W;
+      procedure Put_Tag (S : String; Size : Natural) is
+      begin
+         for C of S loop
+            Put (Character'Pos (C));
+         end loop;
+         Put (Byte (Size mod 256));
+         Put (Byte (Size / 256 mod 256));
+         Put (Byte (Size / 65536 mod 256));
+         Put (0);
+      end Put_Tag;
+      procedure Page (Bank : Natural) is
+         Raw : Byte_Array (0 .. 16#3FFF#);
+         Packed : Byte_Array (0 .. 16#4100#);
+         Len : aliased Interfaces.C.unsigned_long := Packed'Length;
+         use type Interfaces.C.int;
+      begin
+         for K in Raw'Range loop
+            Raw (K) := Memory.Store (Memory.RAM_Base (Bank) + K);
+         end loop;
+         if Z_Compress (Packed'Address, Len'Access, Raw'Address,
+                        Raw'Length) = 0
+         then
+            Put_Tag ("RAMP", Natural (Len) + 3);
+            Put_W (1);
+            Put (Byte (Bank));
+            Out_Buf (N .. N + Natural (Len) - 1) :=
+              Packed (0 .. Natural (Len) - 1);
+            N := N + Natural (Len);
+         else
+            Put_Tag ("RAMP", 16#4003#);
+            Put_W (0);
+            Put (Byte (Bank));
+            Out_Buf (N .. N + 16#3FFF#) := Raw;
+            N := N + 16#4000#;
+         end if;
+      end Page;
+   begin
+      for C of String'("ZXST") loop
+         Put (Character'Pos (C));
+      end loop;
+      Put (1);
+      Put (4);
+      Put ((case Model is
+               when Config.ZX128 => 2, when Config.Plus2 => 3,
+               when Config.Plus2A => 4, when Config.Plus3 => 5,
+               when others => 1));
+      Put (0);
+      Put_Tag ("Z80R", 37);
+      Put (CPU.F); Put (CPU.A); Put (CPU.C); Put (CPU.B);
+      Put (CPU.E); Put (CPU.D); Put (CPU.L); Put (CPU.H);
+      Put (CPU.F2); Put (CPU.A2); Put (CPU.C2); Put (CPU.B2);
+      Put (CPU.E2); Put (CPU.D2); Put (CPU.L2); Put (CPU.H2);
+      Put_W (CPU.IX); Put_W (CPU.IY); Put_W (CPU.SP); Put_W (CPU.PC);
+      Put (CPU.I); Put (CPU.R);
+      Put ((if CPU.IFF1 then 1 else 0));
+      Put ((if CPU.IFF2 then 1 else 0));
+      Put (Byte (CPU.IM));
+      declare
+         TS : constant Natural := Natural'Max (0, Tstates.T);
+      begin
+         Put (Byte (TS mod 256)); Put (Byte (TS / 256 mod 256));
+         Put (Byte (TS / 65536 mod 256)); Put (0);
+      end;
+      Put (0);
+      Put ((if CPU.After_EI then 1 else 0) or (if CPU.Halted then 2 else 0));
+      Put_W (CPU.MEMPTR);
+      Put_Tag ("SPCR", 8);
+      Put (Byte (ULA.Border_Colour));
+      Put (Memory.Port_7FFD);
+      Put (Memory.Port_1FFD);
+      Put (Last_FE);
+      for K in 1 .. 4 loop
+         Put (0);
+      end loop;
+      if Config.Is_128 then
+         Put_Tag ("AY" & ASCII.NUL & ASCII.NUL, 18);
+         Put (0);
+         Put (Byte (AY.Selected));
+         for K in 0 .. 15 loop
+            Put (AY.Regs (K));
+         end loop;
+         for Bank in 0 .. 7 loop
+            Page (Bank);
+         end loop;
+      else
+         Page (5);
+         Page (2);
+         Page (0);
+      end if;
+      return Out_Buf (0 .. N - 1);
+   end Save_SZX;
+
+   ---------------------------------------------------------------------
+
+   procedure Load_Data (Kind : String; D : Byte_Array; Ok : out Boolean) is
+   begin
+      if Kind = "sna" then
          Load_SNA (D, Ok);
-      elsif E = "z80" then
+      elsif Kind = "z80" then
          Load_Z80 (D, Ok);
-      elsif E = "azx" then
+      elsif Kind = "szx" then
+         Load_SZX (D, Ok);
+      elsif Kind = "azx" then
          Load_AZX (D, Ok);
       else
          Ok := False;
-         Err := To_Unbounded_String ("unknown snapshot type");
+         Err := To_Unbounded_String ("unknown snapshot type " & Kind);
       end if;
+   exception
+      when others =>
+         Ok := False;
+         Err := To_Unbounded_String ("damaged ." & Kind & " snapshot");
+   end Load_Data;
+
+   procedure Peek_Model_Data (Kind : String; D : Byte_Array;
+                              M : out Model_Type; Ok : out Boolean) is
+   begin
+      Ok := True;
+      M := Config.ZX48;
+      if Kind = "sna" then
+         M := (if D'Length = 49179 then Config.ZX48 else Config.ZX128);
+      elsif Kind = "z80" then
+         M := Z80_Model (D);
+      elsif Kind = "szx" then
+         Ok := D'Length > 8 and then Tag (D, D'First) = "ZXST";
+         if Ok then
+            M := SZX_Model (D (D'First + 6));
+         end if;
+      elsif Kind = "azx" then
+         Ok := D'Length > 5 and then D (D'First .. D'First + 3)
+           = (65, 90, 88, 49);
+         if Ok then
+            M := Model_Type'Val (Natural (D (D'First + 4)));
+         end if;
+      else
+         Ok := False;
+      end if;
+      if not Ok then
+         Err := To_Unbounded_String ("not a ." & Kind & " snapshot");
+      end if;
+   exception
+      when others =>
+         Ok := False;
+         Err := To_Unbounded_String ("damaged ." & Kind & " snapshot");
+   end Peek_Model_Data;
+
+   procedure Load (Path : String; Ok : out Boolean) is
+   begin
+      Load_Data (Ext (Path), Read_File (Path), Ok);
    exception
       when others =>
          Ok := False;
@@ -675,13 +933,16 @@ package body Machine.Snapshots is
          Write_File (Path, Save_SNA);
       elsif E = "z80" and then Model /= Config.ZX81 then
          Write_File (Path, Save_Z80);
+      elsif E = "szx" and then Model /= Config.ZX81 then
+         Write_File (Path, Save_SZX);
       elsif E = "azx" then
          Write_File (Path, Save_AZX);
       else
          Ok := False;
          Err := To_Unbounded_String
            ("snapshots of this machine are saved as ."
-            & (if Model = Config.ZX81 then "azx" else "z80, .sna or .azx"));
+            & (if Model = Config.ZX81 then "azx"
+               else "z80, .szx, .sna or .azx"));
       end if;
    exception
       when others =>

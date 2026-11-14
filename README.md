@@ -67,7 +67,7 @@ Use a copy you are entitled to use, and do not pass it on with AdaZX.
 | Memory | 128K paging (&7FFD), +2A / +3 paging and all-RAM modes (&1FFD). |
 | Sound | Beeper and MIC, AY-3-8912 (128K models: tones, noise, envelopes), the tape signal while loading; PulseAudio, which also paces the emulation. |
 | Tape | TAP and TZX (standard, turbo, pure tone, pulse sequences, pure data, direct recording, generalized data, CSW recordings (RLE and Z-RLE), pauses, loops, jumps, stop-if-48K) played as the EAR signal in real time (turbo and custom loaders work) or flash-loaded through a ROM trap; SAVE is recorded and can be written as a .tap. |
-| Snapshots | .z80 (v1-v3) and .sna load and save; .azx (AdaZX) holds the complete state of every model, ZX81 included. |
+| Snapshots | .z80 (v1-v3), .szx (ZX-State v1.4, zlib-compressed pages) and .sna load and save; .azx (AdaZX) holds the complete state of every model, ZX81 included. |
 | Joysticks | Kempston, Sinclair 1 / 2, Cursor; keypad, cursor keys or a game controller. |
 | ZX81 | Display generated as on the real machine: the CPU executes the display file above 32K, the ULA turns characters into NOPs and fetches their pattern (I register, line counter), HSYNC / NMI generator / VSYNC from the ports, INT from A6 during refresh; SLOW and FAST mode, WRX hi-res (pattern from RAM via the refresh address), 1K or 16K, optional 8K RAM at &2000. .p files load through the ROM's LOAD (trap), SAVE writes a .p. |
 
