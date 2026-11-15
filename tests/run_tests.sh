@@ -168,4 +168,30 @@ check "conditional breakpoint" "$T/bc.out" "^5C78  40 "
 printf '10 FOR I=1 TO 200\n20 LET X=SQR I\n30 NEXT I\n' > "$T/prof.bas"
 bin/adazx --headless 600 --png "$T/x.png" --profile "$T/prof.bas" > "$T/prof.out"
 check "profiler (calculator's LDIR on top)" "$T/prof.out" "\$33C3 .*LDIR"
+# Assembler: negative 16-bit values ($F820, not $F920)
+printf '            org 32768\n            dw -2048+32, -7\n' > "$T/neg.asm"
+bin/adazx --asm "$T/neg.asm" > /dev/null
+od -An -tx1 "$T/neg.bin" | tr -d ' \n' > "$T/neg.out"; echo >> "$T/neg.out"
+check "assembler: negative words" "$T/neg.out" "^20f8f9ff$"
+# Pentagon 128 (128K ROMs, no contention, 71680 T-states)
+bin/adazx --pentagon --headless 300 --png "$T/x.png" --screen > "$T/pent.out"
+check "Pentagon 128 boots to the 128K menu" "$T/pent.out" "Pentagon 128 frames"
+check "Pentagon 128 menu" "$T/pent.out" "Tape Tester"
+# Timex TC2048 (when roms/tc2048.rom is there): 512-pixel mode (8 ink, 8
+# paper pixels per 16) and 8x1 colour attributes
+if [ -f roms/tc2048.rom ]; then
+  bin/adazx --tc2048 --headless 400 --png "$T/hires.png" tests/timex_hires.asm > /dev/null
+  python3 tests/png_runs.py "$T/hires.png" row 200 > "$T/hires.out"
+  check "TC2048 512-pixel mode" "$T/hires.out" "^96:8 112:8 128:8 144:8 "
+  bin/adazx --tc2048 --headless 400 --png "$T/hc.png" tests/timex_hicolour.asm > /dev/null
+  for y in 96 98 100; do python3 tests/png_runs.py "$T/hc.png" pixel 300 $y; done | tr '\n' ' ' > "$T/hc.out"
+  echo >> "$T/hc.out"
+  check "TC2048 8x1 colour attributes" "$T/hc.out" "^D70000 00D700 D70000 $"
+else
+  echo "skip TC2048 (no roms/tc2048.rom)"
+fi
+# ULAplus: palette entry 15 red (the paper), 8 blue (the border)
+bin/adazx --ulaplus --headless 400 --png "$T/up.png" tests/ulaplus.asm > /dev/null
+echo "$(python3 tests/png_runs.py "$T/up.png" pixel 300 300) $(python3 tests/png_runs.py "$T/up.png" pixel 10 10)" > "$T/up.out"
+check "ULAplus palette (paper and border)" "$T/up.out" "^FF0000 0000FF$"
 exit $fail

@@ -95,8 +95,10 @@ package body Machine.Snapshots is
                return (if Modified then Config.Plus2 else Config.ZX128);
             when 7 | 8 =>
                return (if Modified then Config.Plus2A else Config.Plus3);
+            when 9 => return Config.Pentagon;
             when 12 => return Config.Plus2;
             when 13 => return Config.Plus2A;
+            when 14 => return Config.TC2048;
             when others => return Config.ZX48;
          end case;
       end;
@@ -195,7 +197,7 @@ package body Machine.Snapshots is
    end Load_SNA;
 
    function Save_SNA return Byte_Array is
-      Is48 : constant Boolean := Model = Config.ZX48;
+      Is48 : constant Boolean := Model in Config.ZX48 | Config.TC2048;
       Size : constant Natural := (if Is48 then 49179 else 131103);
       D : Byte_Array (0 .. Size - 1) := (others => 0);
       SP : Word := CPU.SP;
@@ -369,6 +371,9 @@ package body Machine.Snapshots is
                end if;
                Memory.Write_7FFD (D (H + 35));
             end if;
+            if Model = Config.TC2048 then
+               ULA.SCLD := D (H + 36);      --  last OUT to &FF
+            end if;
          end;
       end if;
       After_Load (Natural (Shift_Right (Flags1, 1) and 7));
@@ -447,9 +452,10 @@ package body Machine.Snapshots is
       Put ((case Model is
                when Config.ZX128 => 4, when Config.Plus2 => 12,
                when Config.Plus2A => 13, when Config.Plus3 => 7,
+               when Config.Pentagon => 9, when Config.TC2048 => 14,
                when others => 0));
       Put ((if Is128 then Memory.Port_7FFD else 0));
-      Put (0);                            --  IF1
+      Put ((if Model = Config.TC2048 then ULA.SCLD else 0));  --  IF1 / &FF
       Put ((if Is128 then 4 else 0));     --  AY in use
       Put (Byte (AY.Selected));
       for K in 0 .. 15 loop
@@ -653,6 +659,8 @@ package body Machine.Snapshots is
          when 3 => Config.Plus2,
          when 4 => Config.Plus2A,
          when 5 | 6 => Config.Plus3,
+         when 7 => Config.Pentagon,
+         when 8 => Config.TC2048,
          when others => Config.ZX48);
 
    function Tag (D : Byte_Array; I : Natural) return String is
@@ -704,6 +712,8 @@ package body Machine.Snapshots is
                   CPU.IM := Natural (D (B + 28)) mod 3;
                   CPU.MEMPTR := RW (35);
                end;
+            elsif Id = "SCLD" and then Size >= 2 then
+               ULA.SCLD := D (B + 1);         --  chHsr (&F4), chDec (&FF)
             elsif Id = "SPCR" and then Size >= 4 then
                Border := Natural (D (B) and 7);
                P7 := D (B + 1);
@@ -815,6 +825,7 @@ package body Machine.Snapshots is
       Put ((case Model is
                when Config.ZX128 => 2, when Config.Plus2 => 3,
                when Config.Plus2A => 4, when Config.Plus3 => 5,
+               when Config.Pentagon => 7, when Config.TC2048 => 8,
                when others => 1));
       Put (0);
       Put_Tag ("Z80R", 37);
@@ -844,6 +855,11 @@ package body Machine.Snapshots is
       for K in 1 .. 4 loop
          Put (0);
       end loop;
+      if Model = Config.TC2048 then
+         Put_Tag ("SCLD", 2);
+         Put (0);
+         Put (ULA.SCLD);
+      end if;
       if Config.Is_128 then
          Put_Tag ("AY" & ASCII.NUL & ASCII.NUL, 18);
          Put (0);

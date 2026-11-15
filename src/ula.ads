@@ -64,4 +64,20 @@ package ULA is
 
    Frame_Counter : Natural := 0;    --  flash phase (inverts every 16)
 
+   --  Timex SCLD (TC2048, port &FF): bits 0 - 2 screen mode (0 standard,
+   --  1 second screen at &6000, 2 / 3 8x1 colour attributes at &6000,
+   --  4 / 5 / 6 / 7 512-pixel modes), 3 - 5 the 512-pixel mode's colours,
+   --  6 no frame interrupt
+   SCLD : Byte := 0;
+   procedure Set_SCLD (V : Byte; T : Integer);
+   function Interrupts_Off return Boolean;     --  SCLD bit 6 (TC2048)
+
+   --  ULAplus: 64 palette entries (GGGRRRBB), register 64 the mode
+   Plus_Register : Byte := 0;
+   Plus_Palette : Byte_Array (0 .. 63) := (others => 0);
+   Plus_On : Boolean := False;          --  palette mode
+   procedure ULAplus_Out (Port : Word; V : Byte; T : Integer);
+   function ULAplus_In return Byte;
+   procedure Reset_Extras;              --  SCLD and ULAplus at power on
+
 end ULA;

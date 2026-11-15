@@ -80,6 +80,7 @@ with Host_Joystick;
 with Tape;
 with Interface_1;
 with DivMMC;
+with ULA;
 
 package body GUI is
 
@@ -103,7 +104,7 @@ package body GUI is
    Item_Auto_Play : Gtk_Check_Menu_Item;
    Item_Tape_Sound : Gtk_Check_Menu_Item;
    Item_16K, Item_2000, Item_Issue2, Item_IF1 : Gtk_Check_Menu_Item;
-   Item_ZONX, Item_QS, Item_DivMMC : Gtk_Check_Menu_Item;
+   Item_ZONX, Item_QS, Item_DivMMC, Item_ULAplus : Gtk_Check_Menu_Item;
    Model_Items : array (Model_Type) of Gtk_Radio_Menu_Item;
    Updating_Menu : Boolean := False;
 
@@ -197,6 +198,7 @@ package body GUI is
       Item_Issue2.Set_Active (Machine.Issue_2);
       Item_IF1.Set_Active (Machine.Interface_1_Fitted);
       Item_DivMMC.Set_Active (Machine.DivMMC_Fitted);
+      Item_ULAplus.Set_Active (Config.ULAplus);
       Model_Items (Machine.Model).Set_Active (True);
       Updating_Menu := False;
       if not Machine.Is_ZX81 then
@@ -613,6 +615,16 @@ package body GUI is
       end if;
    end On_DivMMC;
 
+   procedure On_ULAplus (Item : access Gtk_Check_Menu_Item_Record'Class) is
+   begin
+      if not Updating_Menu then
+         Config.ULAplus := Item.Get_Active;
+         if not Config.ULAplus then
+            ULA.Plus_On := False;          --  back to the normal colours
+         end if;
+      end if;
+   end On_ULAplus;
+
    procedure On_IF1 (Item : access Gtk_Check_Menu_Item_Record'Class) is
    begin
       if not Updating_Menu then
@@ -882,6 +894,7 @@ package body GUI is
    function Model_Key (M : Model_Type) return String is
      (case M is
          when Config.ZX48 => "48", when Config.ZX128 => "128",
+         when Config.TC2048 => "tc2048", when Config.Pentagon => "pentagon",
          when Config.Plus2 => "plus2", when Config.Plus2A => "plus2a",
          when Config.Plus3 => "plus3", when Config.ZX81 => "zx81",
          when Config.ZX80 => "zx80");
@@ -911,6 +924,7 @@ package body GUI is
       Settings.Set ("issue2", Machine.Issue_2);
       Settings.Set ("interface1", Interface_1.Enabled);
       Settings.Set ("divmmc", DivMMC.Enabled);
+      Settings.Set ("ulaplus", Config.ULAplus);
       Settings.Set ("sdcard", Machine.SD_Name);
       Settings.Set ("lastdir", To_String (Last_Dir));
       declare
@@ -1402,6 +1416,9 @@ package body GUI is
       if not DivMMC.Enabled then
          DivMMC.Enabled := Settings.Get ("divmmc", False);
       end if;
+      if not Config.ULAplus then
+         Config.ULAplus := Settings.Get ("ulaplus", False);
+      end if;
       if Machine.SD_Name = "" then
          declare
             P : constant String := Settings.Get ("sdcard", "");
@@ -1509,6 +1526,8 @@ package body GUI is
                  Item_IF1, On_IF1'Access);
       Add_Check (M_Machine, "_DivMMC with esxDOS (SD card; NMI = browser)",
                  Item_DivMMC, On_DivMMC'Access);
+      Add_Check (M_Machine, "ULA_plus 64-colour palette", Item_ULAplus,
+                 On_ULAplus'Access);
       Add_Separator (M_Machine);
       Add_Item (M_Machine, "_Reset (Alt+R)", On_Reset'Access);
       Add_Item (M_Machine, "_NMI (Alt+N)", On_NMI'Access);

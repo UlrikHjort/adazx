@@ -54,6 +54,15 @@ package Video is
    ZX81_Ink   : constant Pixel := 16#101010#;
    ZX81_Paper : constant Pixel := 16#E8E8E0#;
 
+   --  The Timex 512 x 192 mode: the picture at twice the horizontal
+   --  resolution (the window and PNG are drawn at twice the size anyway);
+   --  used for the frame when Wide_Shown.
+   type Wide_Frame is array (0 .. Height - 1, 0 .. 2 * Width - 1) of Pixel;
+   FB_Wide : constant access Wide_Frame :=
+     new Wide_Frame'(others => (others => 0));
+   Wide_Drawn : Boolean := False;   --  this frame has 512-pixel chunks
+   Wide_Shown : Boolean := False;   --  the last finished frame had them
+
    Scanlines : Boolean := False;
    --  Darken every other line (CRT look); applied by Blit.
 

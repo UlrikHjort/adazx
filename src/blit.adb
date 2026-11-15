@@ -53,13 +53,19 @@ package body Blit is
       for Y in 0 .. Video.Height - 1 loop
          for X in 0 .. Video.Width - 1 loop
             declare
-               P : constant Pixel := Video.FB (Y, X);
-               P2 : constant Pixel := (if Video.Scanlines then Dim (P) else P);
+               P : constant Pixel :=
+                 (if Video.Wide_Shown then Video.FB_Wide (Y, 2 * X)
+                  else Video.FB (Y, X));
+               Q : constant Pixel :=
+                 (if Video.Wide_Shown then Video.FB_Wide (Y, 2 * X + 1)
+                  else P);
             begin
                Dst (2 * Y, 2 * X) := P;
-               Dst (2 * Y, 2 * X + 1) := P;
-               Dst (2 * Y + 1, 2 * X) := P2;
-               Dst (2 * Y + 1, 2 * X + 1) := P2;
+               Dst (2 * Y, 2 * X + 1) := Q;
+               Dst (2 * Y + 1, 2 * X) :=
+                 (if Video.Scanlines then Dim (P) else P);
+               Dst (2 * Y + 1, 2 * X + 1) :=
+                 (if Video.Scanlines then Dim (Q) else Q);
             end;
          end loop;
       end loop;

@@ -1,6 +1,10 @@
 # Print the runs of dark rows in one column of a PNG written by AdaZX:
 #   python3 png_runs.py image.png X   ->  "start:length" for each run
+#   python3 png_runs.py image.png row Y  (along a row)
+#   python3 png_runs.py image.png pixel X Y  ->  RRGGBB
 import struct, sys, zlib
+
+rgb = []
 
 def read_png(path):
     d = open(path, 'rb').read()
@@ -19,6 +23,7 @@ def read_png(path):
     bpp = {2: 3, 6: 4}[ct]
     stride = w * bpp
     rows, prev, p = [], bytearray(stride), 0
+    rgb.clear()
     for _ in range(h):
         f = raw[p]
         line = bytearray(raw[p + 1:p + 1 + stride])
@@ -39,13 +44,24 @@ def read_png(path):
                 line[x] = (line[x] + (a if pa <= pb and pa <= pc
                                       else b if pb <= pc else c)) & 255
         rows.append([line[x * bpp] for x in range(w)])
+        rgb.append([(line[x * bpp] << 16) | (line[x * bpp + 1] << 8)
+                    | line[x * bpp + 2] for x in range(w)])
         prev = line
     return rows
 
 rows = read_png(sys.argv[1])
-x = int(sys.argv[2])
+if sys.argv[2] == 'pixel':               # the colour at X Y, as RRGGBB
+    print('%06X' % rgb[int(sys.argv[4])][int(sys.argv[3])])
+    sys.exit(0)
+if sys.argv[2] == 'row':                 # runs along row Y instead
+    line = rows[int(sys.argv[3])] + [255]
+    cells = [[v] for v in line]
+    x = 0
+else:
+    x = int(sys.argv[2])
+    cells = rows + [[255] * len(rows[0])]
 runs, start = [], None
-for y, r in enumerate(rows + [[255] * len(rows[0])]):
+for y, r in enumerate(cells):
     dark = r[x] < 128
     if dark and start is None:
         start = y

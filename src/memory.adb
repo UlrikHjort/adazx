@@ -42,7 +42,8 @@ package body Memory is
 
    function Bank_Contended (Bank : Natural) return Boolean is
      (case Model is
-         when ZX48 => Bank = 5,
+         when ZX48 | TC2048 => Bank = 5,
+         when Pentagon => False,
          when ZX128 | Plus2 => Bank mod 2 = 1,
          when Plus2A | Plus3 => Bank >= 4,
          when ZX81 | ZX80 => False);
@@ -54,7 +55,7 @@ package body Memory is
 
    procedure Update_Map is
    begin
-      if Model = ZX48 or else Is_ZX81 then
+      if Model in ZX48 | TC2048 or else Is_ZX81 then
          Set_Slot (0, ROM_Base (0), False, False);
          Set_RAM (1, 5);
          Set_RAM (2, 2);
@@ -85,16 +86,17 @@ package body Memory is
 
    function Current_ROM return Natural is
      (case Model is
-         when ZX48 | ZX81 | ZX80 => 0,
-         when ZX128 | Plus2 => Natural (Shift_Right (Port_7FFD, 4) and 1),
+         when ZX48 | TC2048 | ZX81 | ZX80 => 0,
+         when ZX128 | Plus2 | Pentagon =>
+            Natural (Shift_Right (Port_7FFD, 4) and 1),
          when Plus2A | Plus3 =>
             Natural (Shift_Right (Port_7FFD, 4) and 1)
             + 2 * Natural (Shift_Right (Port_1FFD, 2) and 1));
 
    function Basic48_ROM return Natural is
      (case Model is
-         when ZX48 | ZX81 | ZX80 => 0,
-         when ZX128 | Plus2 => 1,
+         when ZX48 | TC2048 | ZX81 | ZX80 => 0,
+         when ZX128 | Plus2 | Pentagon => 1,
          when Plus2A | Plus3 => 3);
 
    function Screen_Bank return Natural is

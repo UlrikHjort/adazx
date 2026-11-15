@@ -27,8 +27,11 @@
 
 package Config is
 
-   type Model_Type is (ZX48, ZX128, Plus2, Plus2A, Plus3, ZX81, ZX80);
-   --  Plus2A is the black +2A / +2B (the +3 without its disc drive)
+   type Model_Type is
+     (ZX48, TC2048, ZX128, Plus2, Pentagon, Plus2A, Plus3, ZX81, ZX80);
+   --  Plus2A is the black +2A / +2B (the +3 without its disc drive);
+   --  TC2048: the Timex 48K with the SCLD video modes (port &FF);
+   --  Pentagon: the Russian 128K clone (no contention, 71680 T-states)
 
    Model : Model_Type := ZX48;
 
@@ -46,9 +49,14 @@ package Config is
      (Is_128 or else (Is_ZX81 and then ZX81_Sound /= No_Board));
    function Is_Plus3_Type return Boolean is (Model in Plus2A .. Plus3);
 
+   --  ULAplus (64-colour palette; ports &BF3B / &FF3B) on Spectrum models
+   ULAplus : Boolean := False;
+
    function Model_Name (M : Model_Type) return String is
      (case M is
          when ZX48 => "ZX Spectrum 48K",
+         when TC2048 => "Timex Computer 2048",
+         when Pentagon => "Pentagon 128",
          when ZX128 => "ZX Spectrum 128K",
          when Plus2 => "ZX Spectrum +2",
          when Plus2A => "ZX Spectrum +2A",
@@ -58,7 +66,8 @@ package Config is
 
    function CPU_Clock return Natural is
      (case Model is
-         when ZX48 => 3_500_000,
+         when ZX48 | TC2048 => 3_500_000,
+         when Pentagon => 3_584_000,
          when ZX81 | ZX80 => 3_250_000,
          when others => 3_546_900);
 

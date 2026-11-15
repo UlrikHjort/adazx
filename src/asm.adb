@@ -373,7 +373,7 @@ package body Asm is
                      then
                         V := Primary;
                         return (if U = "LOW" then V mod 256
-                                else (V / 256) mod 256);
+                                else (V mod 65536) / 256);
                      elsif U = "DEFINED" and then Take ("(") then
                         Skip;
                         declare
@@ -587,7 +587,7 @@ package body Asm is
    procedure Emit_Word (V : Integer) is
    begin
       Emit (V mod 256);
-      Emit ((V / 256) mod 256);
+      Emit ((V mod 65536) / 256);     --  (mod: right for negative values)
    end Emit_Word;
 
    ---------------------------------------------------------------------

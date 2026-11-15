@@ -547,6 +547,10 @@ package body Machine is
       IO_Pre (Port);
       if DivMMC.Port_Selected (Port) then
          V := DivMMC.Port_In (Port);
+      elsif Model = Config.TC2048 and then Lo (Port) = 16#FF# then
+         V := ULA.SCLD;
+      elsif Config.ULAplus and then Port = 16#FF3B# then
+         V := ULA.ULAplus_In;
       elsif Interface_1.Port_Selected (Port)
         and then Model in Config.ZX48 .. Config.Plus2
       then
@@ -604,6 +608,13 @@ package body Machine is
          return;
       end if;
       IO_Pre (Port);
+      if Model = Config.TC2048 and then Lo (Port) = 16#FF# then
+         ULA.Set_SCLD (Value, T);
+      end if;
+      if Config.ULAplus and then (Port = 16#BF3B# or else Port = 16#FF3B#)
+      then
+         ULA.ULAplus_Out (Port, Value, T);
+      end if;
       if DivMMC.Port_Selected (Port) then
          DivMMC.Port_Out (Port, Value);
       elsif Interface_1.Port_Selected (Port)
@@ -716,8 +727,10 @@ package body Machine is
       Memory.Reset_Paging;
       CPU.Reset;
       T := 0;
+      ULA.Reset_Extras;
       AY.Clock_Hz :=
-        (if not Config.Is_ZX81 then 1_773_400
+        (if Model = Config.Pentagon then 1_792_000
+         elsif not Config.Is_ZX81 then 1_773_400
          else (case Config.ZX81_Sound is
                   when Config.ZON_X => 1_625_000,
                   when Config.Quicksilva => 812_500,
@@ -759,7 +772,8 @@ package body Machine is
         (others => 16#FF#);
       case M is
          when Config.ZX48 => Load_ROM ("48.rom", 0, 16#4000#, Ok);
-         when Config.ZX128 =>
+         when Config.TC2048 => Load_ROM ("tc2048.rom", 0, 16#4000#, Ok);
+         when Config.ZX128 | Config.Pentagon =>
             Load_ROM ("128-0.rom", 0, 16#4000#, Ok);
             Load_ROM ("128-1.rom", 1, 16#4000#, Ok);
          when Config.Plus2 =>
@@ -1703,7 +1717,7 @@ package body Machine is
          end;
          ZX81_Traps;
       else
-         CPU.INT_Line := T < ULA.Int_Length;
+         CPU.INT_Line := T < ULA.Int_Length and then not ULA.Interrupts_Off;
          Spectrum_Traps;
          if Prof_On then
             declare

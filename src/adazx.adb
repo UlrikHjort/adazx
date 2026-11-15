@@ -26,7 +26,9 @@
 --  AdaZX - a ZX Spectrum, ZX81 and ZX80 emulator written in Ada with GtkAda.
 --
 --  Usage: adazx [options] [file.tap|file.tzx|file.z80|file.sna|file.p|...]
---    --48 / --128 / --plus2 / --plus2a / --plus3 / --zx81 / --zx80
+--    --48 / --128 / --plus2 / --plus2a / --plus3 / --pentagon / --tc2048
+--    / --zx81 / --zx80
+--    --ulaplus          the ULAplus 64-colour palette (Spectrum models)
 --                       model (default: last used, 48K)
 --    --roms DIR         ROM directory (default: roms/ next to the program)
 --    --1k               ZX81 / ZX80 without the 16K RAM pack
@@ -173,7 +175,8 @@ begin
       begin
          if A = "--48" or else A = "--128" or else A = "--plus2"
            or else A = "--plus2a" or else A = "--plus3" or else A = "--zx81"
-           or else A = "--zx80"
+           or else A = "--zx80" or else A = "--pentagon"
+           or else A = "--tc2048"
          then
             Model := (if A = "--128" then Machine.ZX128
                       elsif A = "--plus2" then Machine.Plus2
@@ -181,8 +184,12 @@ begin
                       elsif A = "--plus3" then Machine.Plus3
                       elsif A = "--zx81" then Machine.ZX81
                       elsif A = "--zx80" then Config.ZX80
+                      elsif A = "--pentagon" then Config.Pentagon
+                      elsif A = "--tc2048" then Config.TC2048
                       else Machine.ZX48);
             Model_Given := True;
+         elsif A = "--ulaplus" then
+            Config.ULAplus := True;
          elsif A = "--roms" then
             ROM_Dir := To_Unbounded_String (Next);
          elsif A = "--1k" then
