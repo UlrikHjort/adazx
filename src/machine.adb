@@ -46,6 +46,7 @@ with FDC765;
 with Disasm;
 with Typist;
 with Basic;
+with Basic_ZX80;
 with Asm;
 with Machine.Snapshots;
 with Machine.Replay;
@@ -220,7 +221,7 @@ package body Machine is
       if Watch_Count > 0 then
          Check_Watch (Addr, True);
       end if;
-      if Model /= Config.ZX81 and then ULA.Is_Screen_Address (Addr) then
+      if not Config.Is_ZX81 and then ULA.Is_Screen_Address (Addr) then
          ULA.Render_To (T);
       end if;
       Memory.Write (Addr, Value);
@@ -265,7 +266,7 @@ package body Machine is
       if RZX_On then
          RZX_Fetches := RZX_Fetches + 1;
       end if;
-      if Model = Config.ZX81 and then (Addr and 16#8000#) /= 0
+      if Config.Is_ZX81 and then (Addr and 16#8000#) /= 0
         and then (V and 16#40#) = 0 and then not CPU.Halted
       then
          Draw_ZX81_Char (V, T - 4);
@@ -275,7 +276,7 @@ package body Machine is
    end Fetch_Byte;
 
    function Contend (Addr : Word) return Natural is
-     (if Memory.Contended (Addr) and then Model /= Config.ZX81
+     (if Memory.Contended (Addr) and then not Config.Is_ZX81
       then ULA.Delay_At (T) else 0);
 
    function Contend_No_MREQ (Addr : Word) return Natural is
@@ -325,7 +326,7 @@ package body Machine is
    function Port_In (Port : Word) return Byte is
       V : Byte := 16#FF#;
    begin
-      if Model = Config.ZX81 then
+      if Config.Is_ZX81 then
          T := T + 4;
          if (Port and 1) = 0 then
             V := Keyboard.Read_Rows (Hi (Port)) or 16#40#;   --  50 Hz
@@ -369,7 +370,7 @@ package body Machine is
 
    procedure Port_Out (Port : Word; Value : Byte) is
    begin
-      if Model = Config.ZX81 then
+      if Config.Is_ZX81 then
          T := T + 4;
          if VSync then
             VSync := False;             --  end of vertical sync
@@ -507,7 +508,7 @@ package body Machine is
       Keyboard.Clear_Typing;
       Keyboard.Release_All;
       Break_Flag := False;
-      if Model = Config.ZX81 then
+      if Config.Is_ZX81 then
          for Y in 0 .. Video.Height - 1 loop
             Clear_Row (Y);
          end loop;
@@ -541,6 +542,7 @@ package body Machine is
                          16#4000#, Ok);
             end loop;
          when Config.ZX81 => Load_ROM ("zx81.rom", 0, 16#2000#, Ok);
+         when Config.ZX80 => Load_ROM ("zx80.rom", 0, 16#1000#, Ok);
       end case;
       if Interface_1.Enabled and then not Interface_1.ROM_Loaded then
          declare
@@ -563,10 +565,11 @@ package body Machine is
 
    function Model return Model_Type is (Config.Model);
    function Is_ZX81 return Boolean is (Config.Is_ZX81);
+   function Is_ZX80 return Boolean is (Config.Is_ZX80);
    function Error_Message return String is (To_String (Err));
    function Frame_Count return Natural is (Frames);
    function Frame_Rate return Float is
-     (if Model = Config.ZX81 then 3_250_000.0 / Float (ZX81_Frame_T)
+     (if Config.Is_ZX81 then 3_250_000.0 / Float (ZX81_Frame_T)
       else Float (CPU_Clock) / Float (ULA.Frame_T));
    function Get_PC return Word is (CPU.PC);
    function Cycle_Count return Long_Long_Integer is
@@ -603,7 +606,7 @@ package body Machine is
    function Screen_Text return String is
       R : Unbounded_String;
    begin
-      if Model = Config.ZX81 then
+      if Config.Is_ZX81 then
          declare
             A : Word := Peek_Word (16#400C#) + 1;    --  D_FILE
             Line : Unbounded_String;
@@ -616,7 +619,9 @@ package body Machine is
                   begin
                      A := A + 1;
                      exit when C = 16#76#;
-                     Append (Line, ZX81_Char (C));
+                     Append (Line, (if Config.Is_ZX80
+                                    then Basic_ZX80.From_Code (C)
+                                    else ZX81_Char (C)));
                   end;
                end loop;
                Append (R, To_String (Line) & ASCII.LF);
@@ -704,6 +709,9 @@ package body Machine is
    Plus3_Wait_From : constant Word := 16#1872#;   --  +3 editor key wait
    Plus3_Wait_To   : constant Word := 16#1878#;
 
+   ZX80_Wait_From : constant Word := 16#013C#;   --  ZX80 key wait loop
+   ZX80_Wait_To   : constant Word := 16#01B5#;
+
    function In_Key_Wait return Boolean is
       PC : constant Word := CPU.PC;
       ROM : constant Natural := Memory.Current_ROM;
@@ -713,6 +721,8 @@ package body Machine is
             --  waiting in the editor (keyboard loop in the display
             --  routine, SLOW mode)
             return PC in 16#04CA# .. 16#04D2#;     --  waiting for a key
+         when Config.ZX80 =>
+            return PC in ZX80_Wait_From .. ZX80_Wait_To;
          when others =>
             --  48 BASIC editor key wait (WAIT-KEY / KEY-INPUT loop)
             if ROM = Memory.Basic48_ROM then
@@ -767,7 +777,7 @@ package body Machine is
       end if;
       if Inject_Basic then
          Typist.Install_Program (Inject_Data.all);
-         if Model = Config.ZX81 then
+         if Config.Is_ZX81 then
             Keyboard.Type_Pause (60);
          end if;
       else
@@ -810,7 +820,7 @@ package body Machine is
             end if;
          when Typing_Load => null;
          when Wait_Loaded =>
-            if Model = Config.ZX81 and then Auto_Run_After_Load
+            if Config.Is_ZX81 and then Auto_Run_After_Load
               and then not Keyboard.Typing_Busy
               and then Stage_Frames > 50 and then At_Prompt
             then
@@ -818,9 +828,9 @@ package body Machine is
                Type_Text ("RUN" & ASCII.LF);
                Stage := Idle;
             elsif Stage_Frames > 50 * 60 or else
-              (Model /= Config.ZX81 and then not Tape.Playing
+              (not Config.Is_ZX81 and then not Tape.Playing
                and then Stage_Frames > 100)
-              or else (Model = Config.ZX81 and then Stage_Frames > 300)
+              or else (Config.Is_ZX81 and then Stage_Frames > 300)
             then
                Stage := Idle;
             end if;
@@ -878,7 +888,8 @@ package body Machine is
    begin
       if Basic.Is_Source (Path) then
          Basic.Tokenize_File
-           (Path, (if Model = Config.ZX81 then Basic.ZX81 else Basic.Spectrum));
+           (Path, (if Config.Is_ZX80 then Basic.ZX80
+                   elsif Config.Is_ZX81 then Basic.ZX81 else Basic.Spectrum));
          Ok := Basic.Error_Count = 0;
          if not Ok then
             Err := To_Unbounded_String
@@ -889,7 +900,8 @@ package body Machine is
          Inject_And_Run (Basic.Program, 0, "RUN" & ASCII.LF,
                          Is_Basic => True);
       else
-         Asm.Target := (if Model = Config.ZX81 then Asm.ZX81 else Asm.Spectrum);
+         Asm.Target := (if Config.Is_ZX80 then Asm.ZX80
+                        elsif Config.Is_ZX81 then Asm.ZX81 else Asm.Spectrum);
          Asm.Assemble (Path);
          Ok := not Asm.Has_Errors and then Asm.Has_Output;
          if not Ok then
@@ -899,7 +911,16 @@ package body Machine is
                else "no code");
             return;
          end if;
-         if Model = Config.ZX81 then
+         if Config.Is_ZX80 then
+            if Asm.Low_Address /= 16#402B# then
+               Ok := False;
+               Err := To_Unbounded_String
+                 ("ZX80 programs must start at 16427 ($402B)");
+               return;
+            end if;
+            Inject_And_Run (Asm.ZX80_Program, 0, "RUN" & ASCII.LF,
+                            Is_Basic => True);
+         elsif Config.Is_ZX81 then
             if Asm.Low_Address /= 16#4082# then
                Ok := False;
                Err := To_Unbounded_String
@@ -920,8 +941,9 @@ package body Machine is
    procedure Autostart (Path : String; Ok : out Boolean) is
       Ext : constant String := Ada.Characters.Handling.To_Lower
         (File_Ext.Of_Path (Path));
+      Is_ZX80_File : constant Boolean := Ext = "o" or else Ext = "80";
       Is_ZX81_File : constant Boolean := Ext = "p" or else Ext = "81"
-        or else Ext = "p81";
+        or else Ext = "p81" or else Is_ZX80_File;
    begin
       Ok := True;
       if Ext in "z80" | "sna" | "azx" | "szx" | "rzx" then
@@ -971,8 +993,12 @@ package body Machine is
          Stage_Frames := 0;
          return;
       end if;
-      if Is_ZX81_File /= (Model = Config.ZX81) then
-         Power_On ((if Is_ZX81_File then Config.ZX81 else Config.ZX48),
+      if Is_ZX81_File /= Config.Is_ZX81
+        or else (Is_ZX80_File and then not Config.Is_ZX80)
+        or else (Is_ZX81_File and then not Is_ZX80_File and then Config.Is_ZX80)
+      then
+         Power_On ((if Is_ZX80_File then Config.ZX80
+                    elsif Is_ZX81_File then Config.ZX81 else Config.ZX48),
                    To_String (ROM_Dir_Used), Ok);
          if not Ok then
             return;
@@ -1041,7 +1067,7 @@ package body Machine is
    end Eject_Tape;
 
    function Tape_Name return String is
-     (if Model = Config.ZX81 then P_Files.Name else Tape.Name);
+     (if Config.Is_ZX81 then P_Files.Name else Tape.Name);
    procedure Tape_Rewind is
    begin
       Tape.Rewind;
@@ -1056,11 +1082,11 @@ package body Machine is
    end Tape_Stop;
    function Tape_Motor return Boolean is (Tape.Playing);
    function Tape_Recorded return Natural is
-     (if Model = Config.ZX81 then P_Files.Recorded
+     (if Config.Is_ZX81 then P_Files.Recorded
       else Tape.Recorded_Bytes);
    procedure Save_Tape_Recording (Path : String; Ok : out Boolean) is
    begin
-      if Model = Config.ZX81 then
+      if Config.Is_ZX81 then
          P_Files.Save_Recording (Path, Ok);
       else
          Tape.Save_Recording (Path, Ok);
@@ -1152,6 +1178,31 @@ package body Machine is
    procedure ZX81_Traps is
       PC : constant Word := CPU.PC;
    begin
+      if Config.Is_ZX80 then
+         --  ZX80: LOAD at &0206, SAVE at &01B6 (memory &4000 .. E_LINE)
+         if PC = 16#0206# and then P_Files.Loaded then
+            CPU.SP := CPU.SP + 2;              --  its POP DE
+            P_Files.Load_Into_Memory;
+            declare
+               Last : constant Word := P_Files.Last_Address;
+            begin
+               CPU.H := Hi (Last);
+               CPU.L := Lo (Last);
+            end;
+            CPU.PC := 16#0248#;                --  CALL 01F8: loading done
+         elsif PC = 16#01B6# then
+            CPU.SP := CPU.SP + 2;
+            P_Files.Record_Memory;
+            declare
+               Last : constant Word := Peek_Word (16#400A#) - 1;
+            begin
+               CPU.H := Hi (Last);
+               CPU.L := Lo (Last);
+            end;
+            CPU.PC := 16#01F3#;
+         end if;
+         return;
+      end if;
       if PC = 16#0347# and then P_Files.Loaded then
          P_Files.Load_Into_Memory;     --  sets HL to the last byte
          declare
@@ -1179,7 +1230,13 @@ package body Machine is
 
    function Basic_Current_Line return Integer is
    begin
-      if Model = Config.ZX81 then
+      if Config.Is_ZX80 then
+         declare
+            P : constant Word := Peek_Word (16#4002#);    --  PPC
+         begin
+            return (if P >= 16#FFFE# then -1 else Integer (P));
+         end;
+      elsif Config.Is_ZX81 then
          declare
             P : constant Word := Peek_Word (16#4007#);    --  PPC
          begin
@@ -1199,7 +1256,8 @@ package body Machine is
 
    --  The interpreter is about to execute a statement
    function At_Statement return Boolean is
-     (if Model = Config.ZX81 then CPU.PC = 16#0CC1#
+     (if Config.Is_ZX80 then False
+      elsif Config.Is_ZX81 then CPU.PC = 16#0CC1#
       else CPU.PC = 16#1B29#
         and then Memory.Current_ROM = Memory.Basic48_ROM);
 
@@ -1276,7 +1334,7 @@ package body Machine is
          Replay.Record_Frame (RZX_Fetches);
          RZX_Fetches := 0;
       end if;
-      if Model /= Config.ZX81 then
+      if not Config.Is_ZX81 then
          ULA.End_Frame;
       end if;
       Sound.End_Frame (Length);
@@ -1337,7 +1395,7 @@ package body Machine is
 
    procedure Execute_One is
    begin
-      if Model = Config.ZX81 then
+      if Config.Is_ZX81 then
          --  /INT is A6, low only during the refresh of an M1 cycle: the
          --  Z80 sees it when an instruction ends with that M1 (NOP, HALT)
          CPU.INT_Line := T = Last_M1_End
@@ -1375,7 +1433,7 @@ package body Machine is
    end Execute_One;
 
    function Frame_Length return Natural is
-     (if Model = Config.ZX81 then ZX81_Frame_T else ULA.Frame_T);
+     (if Config.Is_ZX81 then ZX81_Frame_T else ULA.Frame_T);
 
    procedure Start_Replay_Part (Ok : out Boolean);
 
@@ -1663,7 +1721,7 @@ package body Machine is
            " 1FFD=" & Disasm.Hex2 (Memory.Port_1FFD) &
            " ROM" & Memory.Current_ROM'Image
          else "") &
-        (if Model = Config.ZX81
+        (if Config.Is_ZX81
          then " NMI=" & (if NMI_Gen then "on" else "off") &
            " LINECNTR=" & Line_Counter'Image
          else " border=" & ULA.Border_Colour'Image) &
@@ -1717,7 +1775,7 @@ package body Machine is
 
    procedure Start_RZX_Recording is
    begin
-      if Model = Config.ZX81 then
+      if Config.Is_ZX81 then
          return;
       end if;
       if Replay.Playing then

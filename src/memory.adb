@@ -44,7 +44,7 @@ package body Memory is
          when ZX48 => Bank = 5,
          when ZX128 | Plus2 => Bank mod 2 = 1,
          when Plus2A | Plus3 => Bank >= 4,
-         when ZX81 => False);
+         when ZX81 | ZX80 => False);
 
    procedure Set_RAM (N : Slot; Bank : Natural) is
    begin
@@ -53,7 +53,7 @@ package body Memory is
 
    procedure Update_Map is
    begin
-      if Model = ZX48 or else Model = ZX81 then
+      if Model = ZX48 or else Is_ZX81 then
          Set_Slot (0, ROM_Base (0), False, False);
          Set_RAM (1, 5);
          Set_RAM (2, 2);
@@ -84,7 +84,7 @@ package body Memory is
 
    function Current_ROM return Natural is
      (case Model is
-         when ZX48 | ZX81 => 0,
+         when ZX48 | ZX81 | ZX80 => 0,
          when ZX128 | Plus2 => Natural (Shift_Right (Port_7FFD, 4) and 1),
          when Plus2A | Plus3 =>
             Natural (Shift_Right (Port_7FFD, 4) and 1)
@@ -92,7 +92,7 @@ package body Memory is
 
    function Basic48_ROM return Natural is
      (case Model is
-         when ZX48 | ZX81 => 0,
+         when ZX48 | ZX81 | ZX80 => 0,
          when ZX128 | Plus2 => 1,
          when Plus2A | Plus3 => 3);
 
@@ -146,7 +146,7 @@ package body Memory is
 
    function Read (Addr : Word) return Byte is
    begin
-      if Model = ZX81 then
+      if Is_ZX81 then
          return Store (ZX81_Offset (Addr));
       end if;
       if Interface_1.Paged and then Addr < 16#4000# then
@@ -157,7 +157,7 @@ package body Memory is
 
    procedure Write (Addr : Word; V : Byte) is
    begin
-      if Model = ZX81 then
+      if Is_ZX81 then
          declare
             O : constant Natural := ZX81_Offset (Addr);
          begin
@@ -172,7 +172,7 @@ package body Memory is
 
    procedure Poke_Any (Addr : Word; V : Byte) is
    begin
-      if Model = ZX81 then
+      if Is_ZX81 then
          Store (ZX81_Offset (Addr)) := V;
       else
          Store (Slot_Base (S (Addr)) + Natural (Addr and 16#3FFF#)) := V;
@@ -186,7 +186,7 @@ package body Memory is
      (Store (RAM_Base (Screen_Bank) + Offset));
 
    function Bank_Of (Addr : Word) return Integer is
-     (if Model = ZX81 or else not Slot_Writable (S (Addr)) then -1
+     (if Is_ZX81 or else not Slot_Writable (S (Addr)) then -1
       else Slot_Base (S (Addr)) / Bank_Size);
 
 end Memory;

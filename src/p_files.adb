@@ -27,6 +27,8 @@ with Ada.Streams.Stream_IO;
 with Ada.Directories;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Memory;
+with Config;
+with File_Ext;
 with Interfaces; use Interfaces;
 
 package body P_Files is
@@ -50,7 +52,9 @@ package body P_Files is
       end;
       SIO.Close (F);
       --  .81 / .p81 files start with the program name (last char + 128)
-      if Image'Length > 0 and then Image (0) /= 0 then
+      if File_Ext.Of_Path (Path) in "81" | "p81" and then Image'Length > 0
+        and then Image (0) /= 0
+      then
          for K in Image'Range loop
             if Image (K) >= 128 then
                Image := new Byte_Array'(Image (K + 1 .. Image'Last));
@@ -59,7 +63,8 @@ package body P_Files is
          end loop;
       end if;
       Image_Name := To_Unbounded_String (Ada.Directories.Simple_Name (Path));
-      Ok := Image'Length > 16#407D# - 16#4009#;
+      Ok := Image'Length > (if Config.Is_ZX80 then 40
+                            else 16#407D# - 16#4009#);
    exception
       when others =>
          Ok := False;
@@ -80,8 +85,13 @@ package body P_Files is
    function Loaded return Boolean is (Image /= null);
    function Name return String is (To_String (Image_Name));
 
+   function Base return Word is
+     (if Config.Is_ZX80 then 16#4000# else 16#4009#);
+   function E_Line_Var return Word is
+     (if Config.Is_ZX80 then 16#400A# else 16#4014#);
+
    procedure Load_Into_Memory is
-      A : Word := 16#4009#;
+      A : Word := Base;
    begin
       if Image = null then
          return;
@@ -97,12 +107,12 @@ package body P_Files is
 
    procedure Record_Memory is
       E_Line : constant Word :=
-        Make_Word (Memory.Read (16#4014#), Memory.Read (16#4015#));
+        Make_Word (Memory.Read (E_Line_Var), Memory.Read (E_Line_Var + 1));
    begin
-      if E_Line > 16#4009# then
-         Rec := new Byte_Array (0 .. Natural (E_Line - 16#4009#) - 1);
+      if E_Line > Base then
+         Rec := new Byte_Array (0 .. Natural (E_Line - Base) - 1);
          for K in Rec'Range loop
-            Rec (K) := Memory.Read (16#4009# + Word (K));
+            Rec (K) := Memory.Read (Base + Word (K));
          end loop;
       end if;
    end Record_Memory;

@@ -1,6 +1,6 @@
 # AdaZX
 
-A ZX Spectrum (48K, 128K, +2, +2A, +3 with its disc drive) and Sinclair ZX81
+A ZX Spectrum (48K, 128K, +2, +2A, +3 with its disc drive), Sinclair ZX81 and ZX80
 emulator written in Ada 2012 with GtkAda, with **Forge**: a Z80 assembler
 IDE, Sinclair BASIC editor, source-level debugger and graphics editors
 around the running machine. It is the Sinclair sibling of AdaC64
@@ -11,7 +11,7 @@ around the running machine. It is the Sinclair sibling of AdaC64
     make                     # GNAT, gprbuild, GtkAda, libpulse-dev,
                              # libgtksourceview-4 (Forge's editor)
     bin/adazx                # 48K Spectrum (or the model used last time)
-    bin/adazx --128          # also --plus2, --plus2a, --plus3, --zx81
+    bin/adazx --128          # also --plus2, --plus2a, --plus3, --zx81, --zx80
     bin/adazx game.tzx       # autostart (also .tap .z80 .szx .sna .azx .rzx .p .81
                              # .scr .bas .b81 .asm)
     bin/adazx-forge          # Forge as the main window
@@ -46,6 +46,7 @@ the current directory, `/usr/share/spectrum-roms` and `/usr/share/fuse`.
 | +2 | `plus2-0.rom`, `plus2-1.rom` |
 | +2A / +3 | `plus3-0.rom` .. `plus3-3.rom` |
 | ZX81 | `zx81.rom` (8 KB, the "improved" version 2 ROM) |
+| ZX80 | `zx80.rom` (4 KB) |
 | Interface 1 | `if1-2.rom` (8 KB, edition 2; in the spectrum-roms package) |
 
 **Spectrum:** Amstrad allow the Spectrum ROMs to be distributed with
@@ -71,6 +72,7 @@ Use a copy you are entitled to use, and do not pass it on with AdaZX.
 | Tape | TAP and TZX (standard, turbo, pure tone, pulse sequences, pure data, direct recording, generalized data, CSW recordings (RLE and Z-RLE), pauses, loops, jumps, stop-if-48K) played as the EAR signal in real time (turbo and custom loaders work) or flash-loaded through a ROM trap; SAVE is recorded and can be written as a .tap. |
 | Snapshots | .z80 (v1-v3), .szx (ZX-State v1.4, zlib-compressed pages) and .sna load and save; .azx (AdaZX) holds the complete state of every model, ZX81 included. RZX input recordings: playback (embedded .szx / .z80 / .sna snapshots, several parts) and recording (Machine menu or `--record-rzx FILE`). |
 | Interface 1 | Shadow ROM paged at &0008 / &1708 and out after &0700, eight Microdrives with .mdr cartridges (read-driven tape loop with GAP / SYNC as in Fuse), FORMAT / SAVE * / LOAD * / CAT, cartridges written back; blank cartridges (File menu or `--new-mdr`); a .mdr autostarts by loading "run". RS232 and network are not connected. |
+| ZX80 | The ZX81 display hardware without the NMI generator (a picture only while the ROM waits for a key, as on the real machine), 4K ROM, 1K or 16K RAM; .o files load through the ROM's LOAD and SAVE writes .o; ZX80 BASIC (integer, operators as tokens) in the tokenizer, lister, typing and Forge; machine code in a REM line at 16427 called with PRINT USR (the ZX80's USR returns HL). |
 | Joysticks | Kempston, Sinclair 1 / 2, Cursor; keypad, cursor keys or a game controller. |
 | ZX81 | Display generated as on the real machine: the CPU executes the display file above 32K, the ULA turns characters into NOPs and fetches their pattern (I register, line counter), HSYNC / NMI generator / VSYNC from the ports, INT from A6 during refresh; SLOW and FAST mode, WRX hi-res (pattern from RAM via the refresh address), 1K or 16K, optional 8K RAM at &2000. .p files load through the ROM's LOAD (trap), SAVE writes a .p. |
 
@@ -115,7 +117,7 @@ Tools:
 
 ## Not (yet) emulated
 
-the ZX80, ZX81 sound boards. The ZX81
+ZX81 sound boards. The ZX81
 pseudo hi-res of some programs (sz81's tetris title) shows thin
 two-scanline offsets that have not been checked against a reference.
 

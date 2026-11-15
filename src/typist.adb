@@ -26,6 +26,7 @@
 with Config;
 with Keyboard; use Keyboard;
 with Basic;
+with Basic_ZX80;
 use type Basic.Dialect;
 use type Basic.Key_Kind;
 with Interfaces; use Interfaces;
@@ -41,7 +42,9 @@ package body Typist is
    end Press;
 
    function Key_Of (C : Character) return Key_Pos is
-     (if C in '0' .. '9' then Digit (C) else Letter (C));
+     (if C in '0' .. '9' then Digit (C)
+      elsif C = '.' then K_Sym             --  the "." key (ZX80 / ZX81)
+      else Letter (C));
 
    procedure Enter_E_Mode is
    begin
@@ -54,13 +57,14 @@ package body Typist is
 
    procedure Type_Line (Line : String) is
       D : constant Basic.Dialect :=
-        (if Config.Is_ZX81 then Basic.ZX81 else Basic.Spectrum);
+        (if Config.Is_ZX80 then Basic.ZX80
+         elsif Config.Is_ZX81 then Basic.ZX81 else Basic.Spectrum);
       K_Mode : Boolean := True;
    begin
       Basic.Tokenize_Text ("1 " & Line, D);
       declare
          P : constant Byte_Array := Basic.Program;
-         I : Natural := P'First + 4;
+         I : Natural := P'First + (if D = Basic.ZX80 then 2 else 4);
          Last : constant Natural := P'Last - 1;     --  before ENTER
       begin
          while I <= Last loop
@@ -98,13 +102,16 @@ package body Typist is
                      when Basic.Not_Keyword =>
                         declare
                            C : constant Character :=
-                             (if D = Basic.ZX81 then Basic.From_ZX81 (B)
+                             (if D = Basic.ZX80 then Basic_ZX80.From_Code (B)
+                              elsif D = Basic.ZX81 then Basic.From_ZX81 (B)
                               elsif B < 128 then Character'Val (B) else '?');
                            Found : Boolean;
                            Combo_K : constant Combo := Char_Combo (C, Found);
                         begin
                            if D = Basic.ZX81 and then B = 11 then
                               Press (Letter ('P'), Caps => True);
+                           elsif D = Basic.ZX80 and then B = 1 then
+                              Press (Letter ('Y'), Caps => True);
                            elsif Found then
                               Type_Combo (Combo_K);
                            end if;
@@ -148,7 +155,11 @@ package body Typist is
 
    procedure Type_Load is
    begin
-      Type_Text ("LOAD """"" & ASCII.LF);
+      if Config.Is_ZX80 then
+         Type_Text ("LOAD" & ASCII.LF);       --  no file names on the ZX80
+      else
+         Type_Text ("LOAD """"" & ASCII.LF);
+      end if;
    end Type_Load;
 
    procedure Put_Word (Addr : Natural; V : Natural) is
@@ -163,7 +174,18 @@ package body Typist is
 
    procedure Install_Program (Data : Byte_Array; Run_Line : Integer := -1) is
    begin
-      if Config.Is_ZX81 then
+      if Config.Is_ZX80 then
+         declare
+            Live : Byte_Array (0 .. 39);
+         begin
+            for K in Live'Range loop
+               Live (K) := Memory.Read (16#4000# + Types.Word (K));
+            end loop;
+            P_Files.Set_Image (Basic_ZX80.Make_O (Data, Live));
+         end;
+         Type_Load;
+         return;
+      elsif Config.Is_ZX81 then
          P_Files.Set_Image (Basic.Make_P (Data, Run_Line));
          Type_Load;
          return;

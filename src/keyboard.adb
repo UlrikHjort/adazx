@@ -205,7 +205,11 @@ package body Keyboard is
          when '`' => return Key (K_Space, Force_Caps);   --  pound sign
          when ',' => return Key (K_Sym, Force_Caps);
          when others =>
-            if C in SH'Range and then SH (C) in 'A' .. 'Z' then
+            if Config.Is_ZX80 and then C = '"' then
+               return Key (Letters ('Y'), Force_Caps);
+            elsif Config.Is_ZX80 and then C = '*' then
+               return Key (Letters ('P'), Force_Caps);
+            elsif C in SH'Range and then SH (C) in 'A' .. 'Z' then
                return Key (Letters (SH (C)), Force_Caps);
             end if;
             return No_Map;
@@ -499,7 +503,8 @@ package body Keyboard is
       declare
          E : Entry_Type renames Queue (Q_Pos + 1);
          Release : constant Natural :=
-           (if Config.Is_ZX81 then 6
+           (if Config.Is_ZX80 then 10
+            elsif Config.Is_ZX81 then 6
             elsif Q_Pos + 2 <= Q_Len
               and then Queue (Q_Pos + 2).C.Key = E.C.Key
               and then not Queue (Q_Pos + 2).Pause
@@ -516,6 +521,9 @@ package body Keyboard is
          if Phase = 1 then
             if Config.Is_ZX81 and then E.Frames < 4 then
                E.Frames := 4;    --  the ZX81 reads the keyboard slowly
+            end if;
+            if Config.Is_ZX80 and then E.Frames < 10 then
+               E.Frames := 10;   --  the ZX80 debounces over several frames
             end if;
             Set_Combo (E.C, True);
             Holding := True;

@@ -44,7 +44,8 @@ package Machine is
    --  Load the ROMs of the model and perform a power-on reset.
 
    function Model return Model_Type;
-   function Is_ZX81 return Boolean;
+   function Is_ZX81 return Boolean;    --  ZX81 or ZX80
+   function Is_ZX80 return Boolean;
    function Error_Message return String;
 
    procedure Reset;

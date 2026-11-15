@@ -391,12 +391,13 @@ package body Forge is
          Filter_Src.Set_Name ("Tapes with BASIC (.tap, .p)");
          Filter_Src.Add_Pattern ("*.tap");
          Filter_Src.Add_Pattern ("*.p");
+         Filter_Src.Add_Pattern ("*.o");
       else
          Filter_Src.Set_Name ("Sources (assembly, BASIC)");
          for P of GNAT.Strings.String_List'
            (new String'("*.asm"), new String'("*.z80s"), new String'("*.s"),
             new String'("*.a80"), new String'("*.inc"), new String'("*.bas"),
-            new String'("*.zxb"), new String'("*.b81"), new String'("*.udg"),
+            new String'("*.zxb"), new String'("*.b81"), new String'("*.b80"), new String'("*.udg"),
             new String'("*.scr"), new String'("*.zxs"), new String'("*.z81s"),
             new String'("*.png"))
          loop
@@ -571,10 +572,31 @@ package body Forge is
      "40 PLOT I,21+20*SIN (I/10)" & ASCII.LF &
      "50 NEXT I" & ASCII.LF;
 
+   ZX80_Template : constant String :=
+     "; New ZX80 program (Z80) - F5 assembles and runs it.  The code goes" &
+     ASCII.LF &
+     "; into a REM line at 16427; 2 PRINT USR(16427) shows what it returns"
+     & ASCII.LF & "; in HL.  The code must not contain the byte $76." &
+     ASCII.LF & ASCII.LF &
+     "            org 16427" & ASCII.LF &
+     "start:      ld hl,0" & ASCII.LF &
+     "            ld b,100" & ASCII.LF &
+     ".loop       inc hl              ; count to 100" & ASCII.LF &
+     "            djnz .loop" & ASCII.LF &
+     "            ret" & ASCII.LF;
+
+   ZX80_Basic_Template : constant String :=
+     "10 REM ADAZX FORGE - ZX80 BASIC (INTEGERS)" & ASCII.LF &
+     "20 FOR I=1 TO 10" & ASCII.LF &
+     "30 PRINT I,I*I" & ASCII.LF &
+     "40 NEXT I" & ASCII.LF;
+
    function Asm_Template return String is
-     (if Machine.Model = Machine.ZX81 then ZX81_Template else Template);
+     (if Machine.Is_ZX80 then ZX80_Template
+      elsif Machine.Is_ZX81 then ZX81_Template else Template);
    function Basic_Text_Template return String is
-     (if Machine.Model = Machine.ZX81 then ZX81_Basic_Template
+     (if Machine.Is_ZX80 then ZX80_Basic_Template
+      elsif Machine.Is_ZX81 then ZX81_Basic_Template
       else Basic_Template);
 
    ---------------------------------------------------------------------
@@ -674,7 +696,7 @@ package body Forge is
          else '.');
    begin
       if not Ok then
-         Base := (if Machine.Model = Machine.ZX81 then 16#4000#
+         Base := (if Machine.Is_ZX81 then 16#4000#
                   else 16#5C00#);
       end if;
       for Row in 0 .. 15 loop
@@ -828,7 +850,8 @@ package body Forge is
    end Report;
 
    function Dialect return Basic.Dialect is
-     (if Machine.Model = Machine.ZX81 then Basic.ZX81 else Basic.Spectrum);
+     (if Machine.Is_ZX80 then Basic.ZX80
+      elsif Machine.Is_ZX81 then Basic.ZX81 else Basic.Spectrum);
 
    function Build_Basic (T : Positive) return Boolean is
       PRG : Unbounded_String;
@@ -837,7 +860,8 @@ package body Forge is
    begin
       Out_Buf.Set_Text ("");
       Print ("tokenizing " & Path & " (" &
-             (if Dialect = Basic.ZX81 then "ZX81" else "Spectrum")
+             (case Dialect is when Basic.ZX81 => "ZX81",
+                 when Basic.ZX80 => "ZX80", when Basic.Spectrum => "Spectrum")
              & " BASIC)");
       Print ("");
       Basic.Report := Report'Access;
@@ -892,7 +916,8 @@ package body Forge is
       Print ("assembling " & To_String (Main_File));
       Print ("");
       Asm.Report := Report'Access;
-      Asm.Target := (if Machine.Model = Machine.ZX81 then Asm.ZX81
+      Asm.Target := (if Machine.Is_ZX80 then Asm.ZX80
+                     elsif Machine.Is_ZX81 then Asm.ZX81
                      else Asm.Spectrum);
       Asm.Build (To_String (Main_File), PRG, Ok);
       Last_PRG := PRG;
@@ -960,7 +985,16 @@ package body Forge is
          Machine.Resume;
       end if;
       Stop_Shown := False;
-      if Machine.Model = Machine.ZX81 then
+      if Machine.Is_ZX80 then
+         if Low /= 16#402B# then
+            Print ("ZX80 programs must start at 16427 ($402B): org 16427");
+            return;
+         end if;
+         Machine.Inject_And_Run (Asm.ZX80_Program, 0, "RUN" & ASCII.LF,
+                                 Is_Basic => True);
+         Print ("running: reset, load 1 REM (code) / 2 PRINT USR" &
+                Natural'Image (Natural (Asm.Start_Address)) & ", RUN");
+      elsif Machine.Is_ZX81 then
          if Low /= 16#4082# then
             Print ("ZX81 programs must start at 16514 ($4082): org 16514");
             return;
@@ -1069,7 +1103,10 @@ package body Forge is
    function Memory_Program return Byte_Array is
       From, To : Word;
    begin
-      if Machine.Model = Machine.ZX81 then
+      if Machine.Is_ZX80 then
+         From := 16#4028#;
+         To := Machine.Peek_Word (16#4008#);         --  VARS
+      elsif Machine.Is_ZX81 then
          From := 16#407D#;
          To := Machine.Peek_Word (16#400C#);         --  D_FILE
       else

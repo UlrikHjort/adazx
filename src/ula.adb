@@ -44,7 +44,7 @@ package body ULA is
       Pattern : array (0 .. 7) of Byte;
    begin
       case Model is
-         when ZX48 | ZX81 =>
+         when ZX48 | ZX81 | ZX80 =>
             Line_T := 224; Lines := 312; Int_Length := 32;
             Display_Start := 14_336;
             First := 14_335;

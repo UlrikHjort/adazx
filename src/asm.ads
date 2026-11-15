@@ -58,7 +58,7 @@ package Asm is
 
    subtype Ada_String is Ada.Strings.Unbounded.Unbounded_String;
 
-   type Target_Type is (Spectrum, ZX81);
+   type Target_Type is (Spectrum, ZX81, ZX80);
    Target : Target_Type := Spectrum;
 
    procedure Assemble (Path : String);
@@ -96,6 +96,10 @@ package Asm is
    function Spectrum_Tape return Byte_Array;
    --  The .tap image (loader + CODE block, or only the CODE block).
    function ZX81_Program return Byte_Array;
+   function ZX80_Program return Byte_Array;
+   --  ZX80: 1 REM (the code at 16427 = $402B), 2 PRINT USR(16427) (it
+   --  prints what the code returns in HL);
+   --  the code must not contain &76 (it would end the REM line).
    --  The BASIC program of the ZX81 .p (REM line with the code, RAND USR).
 
    --  Debug information

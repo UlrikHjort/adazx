@@ -29,6 +29,7 @@ with Ada.Directories;
 with Ada.Characters.Handling; use Ada.Characters.Handling;
 with Ada.Strings.Fixed;
 with Interfaces; use Interfaces;
+with Basic_ZX80;
 
 package body Basic is
 
@@ -72,6 +73,8 @@ package body Basic is
    function Token_Text (Code : Byte; D : Dialect) return String is
    begin
       case D is
+         when ZX80 =>
+            return Basic_ZX80.Token_Text (Code);
          when Spectrum =>
             if Code >= Spec_First then
                return Spec_Names (Code).all;
@@ -186,6 +189,16 @@ package body Basic is
    begin
       Kind := Not_Keyword;
       Key := ' ';
+      if D = ZX80 then
+         declare
+            K : Natural;
+         begin
+            Basic_ZX80.Key_Of (Code, K, Key);
+            Kind := (case K is when 1 => K_Mode, when 2 => Symbol_Shift,
+                        when others => Not_Keyword);
+         end;
+         return;
+      end if;
       if Name = "" then
          return;
       end if;
@@ -668,6 +681,20 @@ package body Basic is
       end Try_Keyword;
 
    begin
+      if D = ZX80 then
+         declare
+            L, E : Unbounded_String;
+         begin
+            Basic_ZX80.Tokenize_Line (Text, Number, L, E);
+            for C of To_String (L) loop
+               Emit (Character'Pos (C));
+            end loop;
+            if Length (E) > 0 then
+               Error (Src_Line, To_String (E));
+            end if;
+         end;
+         return;
+      end if;
       Trail := 0;
       Emit (Byte (Number / 256));
       Emit (Byte (Number mod 256));
@@ -855,14 +882,24 @@ package body Basic is
    function Is_Source (Path : String) return Boolean is
       E : constant String := To_Lower (File_Ext.Of_Path (Path));
    begin
-      return E = "bas" or else E = "zxb" or else E = "b81";
+      return E = "bas" or else E = "zxb" or else E = "b81" or else E = "b80";
    end Is_Source;
 
    ---------------------------------------------------------------------
    --  Lister
    ---------------------------------------------------------------------
 
+   function List_Sinclair (Data : Byte_Array; D : Dialect) return String;
+
    function List (Data : Byte_Array; D : Dialect) return String is
+   begin
+      if D = ZX80 then
+         return Basic_ZX80.List (Data);
+      end if;
+      return List_Sinclair (Data, D);
+   end List;
+
+   function List_Sinclair (Data : Byte_Array; D : Dialect) return String is
       R : Unbounded_String;
       P : Natural := Data'First;
       End_Mark : constant Byte := (if D = Spectrum then 16#0D# else 16#76#);
@@ -1028,7 +1065,7 @@ package body Basic is
          end;
       end loop;
       return To_String (R);
-   end List;
+   end List_Sinclair;
 
    function Read_Bytes (Path : String) return Byte_Array is
       F : SIO.File_Type;
@@ -1054,6 +1091,15 @@ package body Basic is
          E : constant String := To_Lower (File_Ext.Of_Path (Path));
       begin
       Ok := True;
+      if E = "o" or else E = "80" then
+         declare
+            Vars : constant Natural :=
+              Natural (D (D'First + 8)) + 256 * Natural (D (D'First + 9))
+              - 16#4000#;
+         begin
+            return List (D (D'First + 40 .. D'First + Vars - 1), ZX80);
+         end;
+      end if;
       if E = "p" or else E = "81" then
          declare
             D_File : constant Natural :=
@@ -1102,7 +1148,10 @@ package body Basic is
         (if Ada.Directories.Extension (Source) = "" then Source
          else Source (Source'First .. Source'Last
                       - Ada.Directories.Extension (Source)'Length - 1));
-      Path : constant String := Base & (if D = Spectrum then ".tap" else ".p");
+      Path : constant String := Base & (case D is
+                                           when Spectrum => ".tap",
+                                           when ZX81 => ".p",
+                                           when ZX80 => ".o");
       F : SIO.File_Type;
    begin
       Tokenize_File (Source, D);
@@ -1158,6 +1207,10 @@ package body Basic is
             Byte_Array'Write (SIO.Stream (F), Prog);
             Byte_Array'Write (SIO.Stream (F), (1 => Parity));
          end;
+      elsif D = ZX80 then
+         Byte_Array'Write (SIO.Stream (F),
+                           Basic_ZX80.Make_O (Program,
+                                              Basic_ZX80.Default_Sysvars));
       else
          Byte_Array'Write (SIO.Stream (F), Make_P (Program, Autorun));
       end if;

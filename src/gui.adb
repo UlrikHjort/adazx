@@ -145,7 +145,7 @@ package body GUI is
    begin
       Status.Set_Text
         (Config.Model_Name (Machine.Model) &
-         (if Machine.Model = Config.ZX81
+         (if Machine.Is_ZX81
           then (if Machine.ZX81_16K then " 16K" else " 1K") else "") &
          (if T /= "" then "  |  tape: " & Short (T) &
             (if Machine.Tape_Motor
@@ -166,7 +166,7 @@ package body GUI is
              then " M2: " & Short (Machine.Microdrive_Name (2)) else "") &
             (if Machine.Microdrive_Active then " [*]" else " [ ]")
           else "") &
-         (if Machine.Model /= Config.ZX81
+         (if not Machine.Is_ZX81
           then "  |  joystick " & Joystick_Name else "") &
          (if Machine.RZX_Status /= "" then "  |  " & Machine.RZX_Status
           else "") &
@@ -189,7 +189,7 @@ package body GUI is
       Item_IF1.Set_Active (Machine.Interface_1_Fitted);
       Model_Items (Machine.Model).Set_Active (True);
       Updating_Menu := False;
-      if Machine.Model /= Config.ZX81 then
+      if not Machine.Is_ZX81 then
          Last_Spectrum := Machine.Model;
       end if;
       Update_Status;
@@ -334,9 +334,9 @@ package body GUI is
    end Choose_File;
 
    All_Types : constant Ext_List :=
-     ("tap", "tzx", "dsk", "mdr", "z80", "szx", "sna", "azx", "rzx", "p  ", "81 ",
+     ("tap", "tzx", "dsk", "mdr", "z80", "szx", "sna", "azx", "rzx", "p  ", "81 ", "o  ", "80 ",
       "scr", "bas", "asm");
-   Tape_Types : constant Ext_List := ("tap", "tzx", "p  ", "81 ");
+   Tape_Types : constant Ext_List := ("tap", "tzx", "p  ", "81 ", "o  ");
    Snap_Types : constant Ext_List := ("z80", "szx", "sna", "azx", "rzx");
 
    procedure Do_Autostart (Path : String) is
@@ -365,13 +365,13 @@ package body GUI is
    begin
       Do_Autostart (Choose_File
                       ("Autostart tape / snapshot / program", All_Types,
-                       "Spectrum and ZX81 files (tap, tzx, z80, sna, p, ...)"));
+                       "Spectrum / ZX81 / ZX80 files (tap, tzx, dsk, z80, p, o, ...)"));
    end On_Autostart;
 
    procedure On_Attach_Tape (Item : access Gtk_Menu_Item_Record'Class) is
       pragma Unreferenced (Item);
       Path : constant String :=
-        Choose_File ("Insert tape", Tape_Types, "Tapes (tap, tzx, p, 81)");
+        Choose_File ("Insert tape", Tape_Types, "Tapes (tap, tzx, p, 81, o)");
       Ok : Boolean;
    begin
       if Path /= "" then
@@ -555,7 +555,8 @@ package body GUI is
       declare
          Path : constant String :=
            Choose_Save_File ("Save the tape recording",
-                             (if Machine.Is_ZX81 then "recording.p"
+                             (if Machine.Is_ZX80 then "recording.o"
+                              elsif Machine.Is_ZX81 then "recording.p"
                               else "recording.tap"));
          Ok : Boolean;
       begin
@@ -600,7 +601,7 @@ package body GUI is
       Machine.ZX81_RAM_2000 := Item_2000.Get_Active;
       Machine.Issue_2 := Item_Issue2.Get_Active;
       if Gtk_Check_Menu_Item (Item) /= Item_Issue2
-        and then Machine.Model = Config.ZX81
+        and then Machine.Is_ZX81
       then
          Machine.Reset;          --  RAM changes need a power-on
       end if;
@@ -764,7 +765,8 @@ package body GUI is
      (case M is
          when Config.ZX48 => "48", when Config.ZX128 => "128",
          when Config.Plus2 => "plus2", when Config.Plus2A => "plus2a",
-         when Config.Plus3 => "plus3", when Config.ZX81 => "zx81");
+         when Config.Plus3 => "plus3", when Config.ZX81 => "zx81",
+         when Config.ZX80 => "zx80");
 
    procedure Save_Settings is
    begin
@@ -1345,7 +1347,7 @@ package body GUI is
                     Model_Items (M), On_Model'Access);
       end loop;
       Add_Separator (M_Machine);
-      Add_Check (M_Machine, "ZX81: 16K RAM pack", Item_16K,
+      Add_Check (M_Machine, "ZX81 / ZX80: 16K RAM pack", Item_16K,
                  On_ZX81_Option'Access);
       Add_Check (M_Machine, "ZX81: 8K RAM at &2000 (hi-res)", Item_2000,
                  On_ZX81_Option'Access);

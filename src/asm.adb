@@ -34,6 +34,7 @@ with Ada.Containers.Indefinite_Hashed_Maps;
 with Ada.Strings.Hash;
 with Interfaces; use Interfaces;
 with Basic;
+with Basic_ZX80;
 
 package body Asm is
 
@@ -2291,6 +2292,24 @@ package body Asm is
       return Line1 & Basic.Program;
    end ZX81_Program;
 
+   function ZX80_Program return Byte_Array is
+      Code : constant Byte_Array := Code_Bytes;
+      L2, E : Unbounded_String;
+   begin
+      Basic_ZX80.Tokenize_Line
+        ("PRINT USR(" & Trim (Natural (Start_Address)'Image,
+                                  Ada.Strings.Left) & ")", 2, L2, E);
+      declare
+         Line2 : Byte_Array (1 .. Length (L2));
+      begin
+         for K in Line2'Range loop
+            Line2 (K) := Character'Pos (Element (L2, K));
+         end loop;
+         return Byte_Array'(0, 1, 16#FE#) & Code & Byte_Array'(1 => 16#76#)
+           & Line2;
+      end;
+   end ZX80_Program;
+
    procedure Build (Source : String; Output : out Ada_String; Ok : out Boolean)
    is
       Base : constant String := Base_Of (Source);
@@ -2321,7 +2340,13 @@ package body Asm is
          if Target = Spectrum then
             Write_File (Base & ".tap", Spectrum_Tape, Out_Ok);
             Output := To_Unbounded_String (Base & ".tap");
-         elsif Low_Address = 16#4082# then
+         elsif Target = ZX80 and then Low_Address = 16#402B# then
+            Write_File (Base & ".o",
+                        Basic_ZX80.Make_O (ZX80_Program,
+                                           Basic_ZX80.Default_Sysvars),
+                        Out_Ok);
+            Output := To_Unbounded_String (Base & ".o");
+         elsif Target = ZX81 and then Low_Address = 16#4082# then
             Write_File (Base & ".p", Basic.Make_P (ZX81_Program, 2), Out_Ok);
             Output := To_Unbounded_String (Base & ".p");
          else

@@ -99,4 +99,19 @@ check "ZX81 .p load and machine code" "$T/81p.out" "HELLO ZX81 FROM ADA"
 bin/adazx --zx81 --headless 400 --png "$T/j.png" --save-snapshot "$T/z.azx" examples/zx81hello.p > /dev/null
 bin/adazx --zx81 --headless 900 --png "$T/k.png" --screen --load-snapshot "$T/z.azx" > "$T/azx.out"
 check ".azx snapshot (ZX81)" "$T/azx.out" "HELLO ZX81 FROM ADA"
+# ZX80: typing (keyword keys, SHIFT operator tokens), .o build / LOAD,
+# SAVE, machine code in a REM line
+bin/adazx --zx80 --headless 1500 --png "$T/x.png" --screen \
+  --type-at 100 '10 PRINT "HELLO",PEEK(16384)\nRUN\n' > "$T/80.out"
+check "ZX80 BASIC typed in" "$T/80.out" "HELLO   255"
+printf '10 FOR I=1 TO 3\n20 PRINT I*I;\n30 NEXT I\n' > "$T/p.b80"
+bin/adazx --zx80 --basic "$T/p.b80" > /dev/null
+bin/adazx --zx80 --headless 1500 --png "$T/x.png" --screen "$T/p.o" > "$T/80o.out"
+check "ZX80 .o through LOAD" "$T/80o.out" "149"
+bin/adazx --zx80 --headless 900 --png "$T/x.png" --save-tape "$T/s.o" \
+  --type-at 300 '10 PRINT 5\nSAVE\n' > /dev/null
+bin/adazx --list "$T/s.o" > "$T/80s.out"
+check "ZX80 SAVE as .o" "$T/80s.out" "10 PRINT 5"
+bin/adazx --zx80 --headless 1500 --png "$T/x.png" --screen examples/zx80hello.asm > "$T/80a.out"
+check "ZX80 machine code (PRINT USR)" "$T/80a.out" "^385"
 exit $fail

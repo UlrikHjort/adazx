@@ -23,13 +23,13 @@
 -- WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 -- ***************************************************************************
 
---  AdaZX - a ZX Spectrum and ZX81 emulator written in Ada with GtkAda.
+--  AdaZX - a ZX Spectrum, ZX81 and ZX80 emulator written in Ada with GtkAda.
 --
 --  Usage: adazx [options] [file.tap|file.tzx|file.z80|file.sna|file.p|...]
---    --48 / --128 / --plus2 / --plus2a / --plus3 / --zx81
+--    --48 / --128 / --plus2 / --plus2a / --plus3 / --zx81 / --zx80
 --                       model (default: last used, 48K)
 --    --roms DIR         ROM directory (default: roms/ next to the program)
---    --1k               ZX81 without the 16K RAM pack
+--    --1k               ZX81 / ZX80 without the 16K RAM pack
 --    --ram2000          ZX81 with 8K RAM at &2000 (hi-res programs)
 --    --issue2           48K issue 2 keyboard (EAR bit)
 --    --real-tape        no flash loading: load tapes in real time
@@ -51,6 +51,7 @@
 --    --load-snapshot F / --save-snapshot F   before / after the run
 --    --monitor "CMDS"   headless: monitor commands after the run (; = next)
 --    --break ADDR       headless: stop at a breakpoint (hex)
+--    --watch ADDR       headless: stop when ADDR is read or written (hex)
 --    --basic SRC        tokenize a BASIC text file into a .tap / .p, exit
 --    --list FILE        list the BASIC program of a .tap or .p, exit
 --    --asm SRC          assemble a Z80 source file and exit
@@ -160,12 +161,14 @@ begin
       begin
          if A = "--48" or else A = "--128" or else A = "--plus2"
            or else A = "--plus2a" or else A = "--plus3" or else A = "--zx81"
+           or else A = "--zx80"
          then
             Model := (if A = "--128" then Machine.ZX128
                       elsif A = "--plus2" then Machine.Plus2
                       elsif A = "--plus2a" then Machine.Plus2A
                       elsif A = "--plus3" then Machine.Plus3
                       elsif A = "--zx81" then Machine.ZX81
+                      elsif A = "--zx80" then Config.ZX80
                       else Machine.ZX48);
             Model_Given := True;
          elsif A = "--roms" then
@@ -226,6 +229,12 @@ begin
             Dump := To_Unbounded_String (Next);
          elsif A = "--monitor" then
             Monitor_Cmds := To_Unbounded_String (Next);
+         elsif A = "--watch" then
+            declare
+               W : constant Word := Word'Value ("16#" & Next & "#");
+            begin
+               Machine.Add_Watch (W, W, True, True);
+            end;
          elsif A = "--break" then
             Machine.Set_Breakpoint (Word'Value ("16#" & Next & "#"));
          elsif A = "--forge" then
@@ -239,7 +248,9 @@ begin
                Out_Name : Unbounded_String;
             begin
                Basic.Report := Put_Line'Access;
-               Basic.Build (Src, (if Model = Machine.ZX81 then Basic.ZX81
+               Config.Model := Model;
+               Basic.Build (Src, (if Model = Config.ZX80 then Basic.ZX80
+                                  elsif Model = Config.ZX81 then Basic.ZX81
                                   else Basic.Spectrum), Out_Name, Ok);
                Set_Exit_Status (if Ok then 0 else 1);
                return;
@@ -257,7 +268,8 @@ begin
                Out_Name : Unbounded_String;
             begin
                Asm.Report := Put_Line'Access;
-               Asm.Target := (if Model = Machine.ZX81 then Asm.ZX81
+               Asm.Target := (if Model = Config.ZX80 then Asm.ZX80
+                              elsif Model = Config.ZX81 then Asm.ZX81
                               else Asm.Spectrum);
                Asm.Build (Next, Out_Name, Ok);
                Set_Exit_Status (if Ok then 0 else 1);

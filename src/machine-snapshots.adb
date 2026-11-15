@@ -933,9 +933,9 @@ package body Machine.Snapshots is
       Ok := True;
       if E = "sna" and then Model in Config.ZX48 .. Config.Plus2 then
          Write_File (Path, Save_SNA);
-      elsif E = "z80" and then Model /= Config.ZX81 then
+      elsif E = "z80" and then not Config.Is_ZX81 then
          Write_File (Path, Save_Z80);
-      elsif E = "szx" and then Model /= Config.ZX81 then
+      elsif E = "szx" and then not Config.Is_ZX81 then
          Write_File (Path, Save_SZX);
       elsif E = "azx" then
          Write_File (Path, Save_AZX);
@@ -943,7 +943,7 @@ package body Machine.Snapshots is
          Ok := False;
          Err := To_Unbounded_String
            ("snapshots of this machine are saved as ."
-            & (if Model = Config.ZX81 then "azx"
+            & (if Config.Is_ZX81 then "azx"
                else "z80, .szx, .sna or .azx"));
       end if;
    exception

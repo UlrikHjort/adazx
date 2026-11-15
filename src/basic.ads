@@ -43,9 +43,11 @@ with Ada.Strings.Unbounded;
 
 package Basic is
 
-   type Dialect is (Spectrum, ZX81);
+   type Dialect is (Spectrum, ZX81, ZX80);
+   --  ZX80: see Basic_ZX80
 
-   function Is_Source (Path : String) return Boolean;   --  .bas .zxb .b81
+   function Is_Source (Path : String) return Boolean;
+   --  .bas .zxb (Spectrum), .b81 (ZX81), .b80 (ZX80)
 
    procedure Tokenize_Text (Text : String; D : Dialect);
    procedure Tokenize_File (Path : String; D : Dialect);
