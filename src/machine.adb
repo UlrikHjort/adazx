@@ -1,3 +1,4 @@
+with Ada.Text_IO;
 -- ***************************************************************************
 --                              AdaZX - Machine
 --
@@ -1137,6 +1138,25 @@ package body Machine is
    end Save_Tape_Recording;
 
    --  ROM traps for the tape routines (in the 48 BASIC ROM)
+   Print_Params : Natural := 0;    --  parameter bytes still to come
+
+   procedure Log_Print (C : Byte) is
+   begin
+      if Print_Params > 0 then
+         Print_Params := Print_Params - 1;
+      elsif C = 13 then
+         Ada.Text_IO.New_Line;
+      elsif C in 16 .. 21 then
+         Print_Params := 1;            --  INK .. OVER n
+      elsif C in 22 .. 23 then
+         Print_Params := 2;            --  AT y, x / TAB n
+      elsif C in 32 .. 126 then
+         Ada.Text_IO.Put (Character'Val (C));
+      elsif C = 127 then
+         Ada.Text_IO.Put ("(c)");
+      end if;
+   end Log_Print;
+
    procedure Spectrum_Traps is
       PC : constant Word := CPU.PC;
    begin
@@ -1145,6 +1165,10 @@ package body Machine is
         or else Interface_1.Paged       --  the shadow ROM is not BASIC's
       then
          return;
+      end if;
+      if PC = 16#0010# and then Print_Log then
+         Log_Print (Hi (CPU.AF));
+         Memory.Write (23692, 255);    --  SCR_CT: no "scroll?" prompts
       end if;
       if PC = 16#0556# then                --  LD-BYTES
          if Tape.Loaded and then not Tape.Playing and then Auto_Play then
@@ -1383,9 +1407,11 @@ package body Machine is
       Sound.End_Frame (Length);
       Tape.End_Frame (Length);
       T := T - Length;
-      Next_HSync := Next_HSync - Length;
-      VSync_Start_T := VSync_Start_T - Length;
-      Line_Start_T := Line_Start_T - Length;
+      --  (clamped: on the Spectrum, or a ZX81 without VSYNC, these are
+      --  not renewed and would overflow after some 30000 frames)
+      Next_HSync := Integer'Max (Next_HSync - Length, -1_000_000);
+      VSync_Start_T := Integer'Max (VSync_Start_T - Length, -1_000_000);
+      Line_Start_T := Integer'Max (Line_Start_T - Length, -1_000_000);
       Total_Cycles := Total_Cycles + Long_Long_Integer (Length);
       End_Of_Frame;
    end Finish_Frame;

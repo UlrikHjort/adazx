@@ -31,6 +31,7 @@
 --    --roms DIR         ROM directory (default: roms/ next to the program)
 --    --1k               ZX81 / ZX80 without the 16K RAM pack
 --    --zonx / --quicksilva  ZX81 / ZX80 AY sound board
+--    --print-log        echo what the 48K ROM prints (RST 16) to stdout
 --    --ram2000          ZX81 with 8K RAM at &2000 (hi-res programs)
 --    --issue2           48K issue 2 keyboard (EAR bit)
 --    --real-tape        no flash loading: load tapes in real time
@@ -100,7 +101,7 @@ procedure AdaZX is
       Frame : Natural := 0;
       Text  : Unbounded_String;
    end record;
-   Timed : array (1 .. 32) of Timed_Text;
+   Timed : array (1 .. 1024) of Timed_Text;
    Timed_Count : Natural := 0;
    I  : Positive := 1;
    Ok : Boolean;
@@ -176,6 +177,8 @@ begin
             ROM_Dir := To_Unbounded_String (Next);
          elsif A = "--1k" then
             Machine.ZX81_16K := False;
+         elsif A = "--print-log" then
+            Machine.Print_Log := True;
          elsif A = "--zonx" then
             Config.ZX81_Sound := Config.ZON_X;
          elsif A = "--quicksilva" then

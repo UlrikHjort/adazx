@@ -502,6 +502,34 @@ package body Z80 is
    --  ED prefix
    ---------------------------------------------------------------------
 
+   --  A repeating block instruction (PC back at the instruction): the
+   --  undocumented flags 5 and 3 come from PC's high byte, and for the
+   --  I/O ones H and P/V are changed as well (David Banks, 2018).
+   procedure Repeat_Flags (IO : Boolean := False; V : Byte := 0) is
+      Fl : Byte := (F and not (F3 or F5)) or (Hi (PC) and (F3 or F5));
+      function Odd (X : Byte) return Byte is (Parity (X) xor FP);
+   begin
+      if IO then
+         if (Fl and FC) /= 0 then
+            Fl := Fl and not FH;
+            if (V and 16#80#) /= 0 then
+               Fl := Fl xor Odd ((B - 1) and 7);
+               if (B and 16#0F#) = 0 then
+                  Fl := Fl or FH;
+               end if;
+            else
+               Fl := Fl xor Odd ((B + 1) and 7);
+               if (B and 16#0F#) = 16#0F# then
+                  Fl := Fl or FH;
+               end if;
+            end if;
+         else
+            Fl := Fl xor Odd (B and 7);
+         end if;
+      end if;
+      Set_F (Fl);
+   end Repeat_Flags;
+
    procedure Block_Op (Y, Z : Natural) is
       Inc : constant Boolean := Y = 4 or else Y = 6;
       Repeat : constant Boolean := Y >= 6;
@@ -526,6 +554,7 @@ package body Z80 is
                NM (DE, 5);
                PC := PC - 2;
                MEMPTR := PC + 1;
+               Repeat_Flags;
             end if;
             declare
                HL_N : constant Word := HL + Delta_W;
@@ -557,6 +586,7 @@ package body Z80 is
                NM (HL, 5);
                PC := PC - 2;
                MEMPTR := PC + 1;
+               Repeat_Flags;
             else
                MEMPTR := MEMPTR + Delta_W;
             end if;
@@ -578,6 +608,8 @@ package body Z80 is
             if Repeat and then B /= 0 then
                NM (HL, 5);
                PC := PC - 2;
+               MEMPTR := PC + 1;
+               Repeat_Flags (True, V);
             end if;
             declare
                HL_N : constant Word := HL + Delta_W;
@@ -602,6 +634,8 @@ package body Z80 is
             if Repeat and then B /= 0 then
                NM (BC, 5);
                PC := PC - 2;
+               MEMPTR := PC + 1;
+               Repeat_Flags (True, V);
             end if;
       end case;
    end Block_Op;

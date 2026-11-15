@@ -23,7 +23,7 @@ ZX81, the "Tape Loader" menu entry on the 128K models. `.bas` / `.b81`
 files are tokenised and RUN; `.asm` files are assembled and started with
 `RANDOMIZE USR` (Spectrum) or put into a REM line at 16514 (ZX81).
 
-Options: `--roms DIR`, `--disc FILE` (+3 drive A), `--if1`, `--mdr FILE` (Interface 1, cartridge in Microdrive 1), `--1k` (ZX81 without the 16K pack), `--zonx` / `--quicksilva` (ZX81 sound board), `--ram2000`
+Options: `--print-log` (echo what the ROM prints to stdout, never stop at scroll?), `--roms DIR`, `--disc FILE` (+3 drive A), `--if1`, `--mdr FILE` (Interface 1, cartridge in Microdrive 1), `--1k` (ZX81 without the 16K pack), `--zonx` / `--quicksilva` (ZX81 sound board), `--ram2000`
 (ZX81 8K RAM at &2000), `--issue2`, `--real-tape` (no flash loading),
 `--attach FILE`, and for testing `--headless N` (run N frames, save
 `shot.png`), `--png FILE`, `--type TEXT` (`\n` = ENTER), `--type-at FRAME
@@ -64,7 +64,7 @@ Use a copy you are entitled to use, and do not pass it on with AdaZX.
 
 | Part | Notes |
 |------|-------|
-| Z80 | All documented and undocumented instructions and flags, MEMPTR and Q, IM 0/1/2, NMI, HALT. Every memory and I/O cycle happens at its own T-state, so contention is applied exactly: passes all 1356 tests of Fuse's per-cycle suite (bus events and timings identical) and ZEXALL. |
+| Z80 | All documented and undocumented instructions and flags, MEMPTR and Q, IM 0/1/2, NMI, HALT. Every memory and I/O cycle happens at its own T-state, so contention is applied exactly: passes all 1356 tests of Fuse's per-cycle suite (bus events and timings identical), ZEXALL and all variants of Patrik Rak's z80test 1.2a (including the flags of interrupted LDIR / INIR, MEMPTR and CCF). |
 | ULA (Spectrum) | 48K / 128K / +2A timings (69888 / 70908 T-states), memory and I/O contention, the picture drawn behind the CPU in 8-pixel steps (border and multicolour effects appear where they happen), FLASH, floating bus. |
 | Memory | 128K paging (&7FFD), +2A / +3 paging and all-RAM modes (&1FFD). |
 | +3 disc | uPD765A controller (read / write / deleted data, read track, read ID, format, seek, sense status; +3DOS polling, no terminal count) with two drives; .dsk images (standard and extended, sector status flags kept for copy protection) written back as extended DSK; blank formatted discs (File menu or `--new-disc`); a .dsk autostarts through the menu's Loader. |
@@ -135,6 +135,7 @@ Tools:
     share/adazx/language-specs   Z80 and Sinclair BASIC highlighting
     tests/             Fuse's Z80 tests (GPL, from Fuse 1.6.0), ZEXDOC /
                        ZEXALL (GPL), assembler round trip, run_tests.sh
+    tests/z80test/     Patrik Rak's z80test 1.2a tapes (MIT, see LICENSE there)
     examples/          hello.asm (Spectrum), zx81hello.asm
 
 ## License

@@ -129,4 +129,11 @@ bin/adazx --zx81 --quicksilva --headless 600 --png "$T/x.png" --wav "$T/qs.wav" 
   tests/quicksilva.asm > /dev/null
 python3 tests/wav_freq.py "$T/qs.wav" > "$T/qs.out"
 check "ZX81 Quicksilva sound board (254 Hz)" "$T/qs.out" "^25[345]$"
+# Patrik Rak's z80test 1.2a (MIT, tests/z80test): all flags and
+# registers, MEMPTR, and flags after CCF; printed output via --print-log
+for t in z80full z80memptr z80ccf; do
+  bin/adazx --headless 50000 --png "$T/x.png" --print-log \
+    tests/z80test/$t.tap > "$T/$t.out"
+  check "z80test $t" "$T/$t.out" "Result: all tests passed"
+done
 exit $fail

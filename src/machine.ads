@@ -62,6 +62,9 @@ package Machine is
 
    --  Options (take effect at the next power-on where noted)
    Issue_2 : Boolean := False;      --  48K: EAR bit as on issue 2 boards
+   Print_Log : Boolean := False;
+   --  echo what the 48K ROM prints through RST 16 to standard output
+   --  (and keep SCR_CT up, so the ROM never stops at "scroll?")
    ZX81_16K : Boolean := True;      --  ZX81 with the 16K RAM pack (else 1K)
    ZX81_RAM_2000 : Boolean := False;   --  ZX81: 8K RAM at &2000 (hi-res)
 
