@@ -114,4 +114,10 @@ bin/adazx --list "$T/s.o" > "$T/80s.out"
 check "ZX80 SAVE as .o" "$T/80s.out" "10 PRINT 5"
 bin/adazx --zx80 --headless 1500 --png "$T/x.png" --screen examples/zx80hello.asm > "$T/80a.out"
 check "ZX80 machine code (PRINT USR)" "$T/80a.out" "^385"
+# ZX81 line counter: the top-left quadrant block (CHR$ 1) is one run of
+# 4 scanlines (8 PNG rows), not split across the character row
+printf '10 PRINT CHR$ 1\n' > "$T/q.b81"
+bin/adazx --zx81 --headless 600 --png "$T/q.png" "$T/q.b81" > /dev/null
+python3 tests/png_runs.py "$T/q.png" 90 > "$T/q.out"
+check "ZX81 character rows start at line 0" "$T/q.out" "^96:8 "
 exit $fail
