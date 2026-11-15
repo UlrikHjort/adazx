@@ -27,6 +27,7 @@ with Interfaces; use Interfaces;
 with Config; use Config;
 with Interface_1;
 with DivMMC;
+with Beta_Disk;
 
 package body Memory is
 
@@ -153,7 +154,9 @@ package body Memory is
          return Store (ZX81_Offset (Addr));
       end if;
       if Addr < 16#4000# then
-         if DivMMC.Active then
+         if Beta_Disk.Active then
+            return Beta_Disk.ROM_Byte (Addr);
+         elsif DivMMC.Active then
             return DivMMC.Read (Addr);
          elsif Interface_1.Paged then
             return Interface_1.ROM_Byte (Addr);

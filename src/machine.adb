@@ -47,6 +47,7 @@ with Tape;
 with DSK;
 with Interface_1;
 with DivMMC;
+with Beta_Disk;
 with Fat_Image;
 with Ada.Environment_Variables;
 with FDC765;
@@ -427,6 +428,13 @@ package body Machine is
 
    function Bus_Fetch (Addr : Word) return Byte is
    begin
+      --  TR-DOS: its ROM in at a fetch from &3Dxx (48K BASIC selected),
+      --  out at a fetch from &4000 up
+      if Beta_Disk.Enabled then
+         Beta_Disk.Before_Fetch
+           (Addr, Memory.Current_ROM = Memory.Basic48_ROM
+                  and then not Memory.Special_Paging);
+      end if;
       --  DivMMC: automapping on the opcode fetches of its entry points
       if DivMMC.Enabled and then not Config.Is_ZX81
         and then not Memory.Special_Paging
@@ -545,7 +553,9 @@ package body Machine is
          return V;
       end if;
       IO_Pre (Port);
-      if DivMMC.Port_Selected (Port) then
+      if Beta_Disk.Port_Selected (Port) then
+         V := Beta_Disk.Port_In (Port, Total_Cycles + Long_Long_Integer (T));
+      elsif DivMMC.Port_Selected (Port) then
          V := DivMMC.Port_In (Port);
       elsif Model = Config.TC2048 and then Lo (Port) = 16#FF# then
          V := ULA.SCLD;
@@ -615,7 +625,10 @@ package body Machine is
       then
          ULA.ULAplus_Out (Port, Value, T);
       end if;
-      if DivMMC.Port_Selected (Port) then
+      if Beta_Disk.Port_Selected (Port) then
+         Beta_Disk.Port_Out (Port, Value,
+                             Total_Cycles + Long_Long_Integer (T));
+      elsif DivMMC.Port_Selected (Port) then
          DivMMC.Port_Out (Port, Value);
       elsif Interface_1.Port_Selected (Port)
         and then Model in Config.ZX48 .. Config.Plus2
@@ -739,6 +752,7 @@ package body Machine is
       FDC765.Reset;
       Interface_1.Reset;
       DivMMC.Power_On;
+      Beta_Disk.Reset;
       FDC765.Motor := False;
       Restart_Frame_State;
       Last_FE := 0;
@@ -787,6 +801,22 @@ package body Machine is
          when Config.ZX81 => Load_ROM ("zx81.rom", 0, 16#2000#, Ok);
          when Config.ZX80 => Load_ROM ("zx80.rom", 0, 16#1000#, Ok);
       end case;
+      Beta_Disk.Enabled := Model = Config.Pentagon
+        or else (Beta_Wanted and then Model in Config.ZX48 .. Config.Plus2);
+      if Beta_Disk.Enabled and then not Beta_Disk.ROM_Loaded then
+         declare
+            P : constant String := Find_ROM ("trdos.rom");
+            Ok2 : Boolean := False;
+         begin
+            if P /= "" then
+               Beta_Disk.Load_ROM (P, Ok2);
+            end if;
+            if not Ok2 then
+               Append (Err, "missing ROM trdos.rom (TR-DOS)" & ASCII.LF);
+               Beta_Disk.Enabled := False;
+            end if;
+         end;
+      end if;
       if DivMMC.Enabled and then not DivMMC.ROM_Loaded then
          declare
             P : constant String := Find_ROM ("esxmmc.bin");
@@ -1381,6 +1411,7 @@ package body Machine is
         or else Memory.Special_Paging
         or else Interface_1.Paged       --  the shadow ROM is not BASIC's
         or else DivMMC.Active
+        or else Beta_Disk.Active
       then
          return;
       end if;
@@ -2041,6 +2072,7 @@ package body Machine is
         (if CPU.IFF1 then " EI" else " DI") &
         (if CPU.Halted then " HALT" else "") &
         (if Interface_1.Paged then " IF1" else "") &
+        (if Beta_Disk.Active then " TRDOS" else "") &
         "  " & Flags_Text & "  T=" & Integer'Image (T);
    end Register_Text;
 
@@ -2172,7 +2204,44 @@ package body Machine is
    begin
       DSK.Flush_All;
       Interface_1.Flush_All;
+      Beta_Disk.Flush_All;
    end Shutdown;
+
+   procedure Set_Beta (On : Boolean) is
+      Ok : Boolean;
+   begin
+      Beta_Wanted := On;
+      if Powered then
+         Power_On (Model, To_String (ROM_Dir_Used), Ok);
+      end if;
+   end Set_Beta;
+
+   function Beta_Fitted return Boolean is (Beta_Disk.Enabled);
+
+   procedure Insert_TRD (Drive : Natural; Path : String; Ok : out Boolean) is
+   begin
+      Beta_Disk.Insert (Drive mod 4, Path, Ok);
+      if not Ok then
+         Err := To_Unbounded_String (Beta_Disk.Error_Message);
+      end if;
+   end Insert_TRD;
+
+   procedure Eject_TRD (Drive : Natural) is
+   begin
+      Beta_Disk.Eject (Drive mod 4);
+   end Eject_TRD;
+
+   function TRD_Name (Drive : Natural) return String is
+     (Beta_Disk.Name (Drive mod 4));
+   function TRD_Active return Boolean is (Beta_Disk.Activity);
+
+   procedure Create_TRD (Path : String; Ok : out Boolean) is
+   begin
+      Beta_Disk.Create (Path, Ok);
+      if not Ok then
+         Err := To_Unbounded_String (Beta_Disk.Error_Message);
+      end if;
+   end Create_TRD;
 
    procedure Set_DivMMC (On : Boolean) is
       Ok : Boolean;

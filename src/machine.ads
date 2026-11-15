@@ -131,6 +131,16 @@ package Machine is
    --  Interface 1 and Microdrives (48K / 128K / +2)
    procedure Set_Interface_1 (On : Boolean);
 
+   --  Beta 128 disk interface (TR-DOS; built into the Pentagon)
+   Beta_Wanted : Boolean := False;   --  fitted on a 48K / 128K / +2 too
+   procedure Set_Beta (On : Boolean);
+   function Beta_Fitted return Boolean;
+   procedure Insert_TRD (Drive : Natural; Path : String; Ok : out Boolean);
+   procedure Eject_TRD (Drive : Natural);
+   function TRD_Name (Drive : Natural) return String;
+   function TRD_Active return Boolean;
+   procedure Create_TRD (Path : String; Ok : out Boolean);
+
    --  DivMMC (esxDOS) and its SD card
    procedure Set_DivMMC (On : Boolean);       --  fitted from the next reset
    function DivMMC_Fitted return Boolean;
