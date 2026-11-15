@@ -23,7 +23,7 @@ ZX81, the "Tape Loader" menu entry on the 128K models. `.bas` / `.b81`
 files are tokenised and RUN; `.asm` files are assembled and started with
 `RANDOMIZE USR` (Spectrum) or put into a REM line at 16514 (ZX81).
 
-Options: `--roms DIR`, `--disc FILE` (+3 drive A), `--if1`, `--mdr FILE` (Interface 1, cartridge in Microdrive 1), `--1k` (ZX81 without the 16K pack), `--ram2000`
+Options: `--roms DIR`, `--disc FILE` (+3 drive A), `--if1`, `--mdr FILE` (Interface 1, cartridge in Microdrive 1), `--1k` (ZX81 without the 16K pack), `--zonx` / `--quicksilva` (ZX81 sound board), `--ram2000`
 (ZX81 8K RAM at &2000), `--issue2`, `--real-tape` (no flash loading),
 `--attach FILE`, and for testing `--headless N` (run N frames, save
 `shot.png`), `--png FILE`, `--type TEXT` (`\n` = ENTER), `--type-at FRAME
