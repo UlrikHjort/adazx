@@ -39,6 +39,12 @@
 --    --disc FILE        insert a .dsk in drive A of the +3
 --    --if1              fit the Interface 1 (48K / 128K)
 --    --mdr FILE         Interface 1 with the .mdr cartridge in Microdrive 1
+--    --divmmc           DivMMC with esxDOS (roms/esxmmc.bin)
+--    --sd FILE          DivMMC with FILE (an SD card image) in its slot
+--    --sd-dir DIR       DivMMC with a card built from the folder DIR (and
+--                       esxdos/ from the ROM folder: SYS, BIN, TMP)
+--    --new-sd FILE      a new card image (with esxdos/ when found)
+--    --nmi-at FRAME     headless: press the NMI button at FRAME
 --    --new-mdr FILE     create a blank Microdrive cartridge and exit
 --    --new-disc FILE    create a blank, formatted +3 .dsk and exit
 --    --headless N       run N frames without GUI, then save a screenshot
@@ -78,6 +84,7 @@ with Basic;
 with Asm;
 with Monitor_Commands;
 with Interface_1;
+with DivMMC;
 
 procedure AdaZX is
    Model    : Machine.Model_Type := Machine.ZX48;
@@ -195,6 +202,16 @@ begin
             PNG := To_Unbounded_String (Next);
          elsif A = "--type" then
             Text := To_Unbounded_String (Unescape (Next));
+         elsif A = "--nmi-at" then
+            declare
+               F : constant Natural := Natural'Value (Next);
+            begin
+               if Timed_Count < Timed'Last then
+                  Timed_Count := Timed_Count + 1;
+                  Timed (Timed_Count) :=
+                    (F, To_Unbounded_String ((1 => ASCII.NUL)));
+               end if;
+            end;
          elsif A = "--type-at" then
             declare
                F : constant Natural := Natural'Value (Next);
@@ -213,6 +230,35 @@ begin
             Save_Snap := To_Unbounded_String (Next);
          elsif A = "--load-snapshot" then
             Load_Snap := To_Unbounded_String (Next);
+         elsif A = "--sd-dir" or else A = "--new-sd" then
+            declare
+               Arg : constant String := Next;
+               Ok_SD : Boolean;
+            begin
+               if A = "--sd-dir" then
+                  Machine.SD_From_Folder (Arg, Ok_SD);
+               else
+                  Machine.New_SD (Arg, Ok_SD);
+               end if;
+               if not Ok_SD then
+                  Put_Line (Machine.Error_Message);
+               elsif A = "--new-sd" then
+                  Put_Line ("wrote " & Arg);
+               end if;
+            end;
+         elsif A = "--divmmc" then
+            DivMMC.Enabled := True;
+         elsif A = "--sd" then
+            DivMMC.Enabled := True;
+            declare
+               P : constant String := Next;
+               Ok_SD : Boolean;
+            begin
+               DivMMC.Insert (P, Ok_SD);
+               if not Ok_SD then
+                  Put_Line (DivMMC.Error_Message);
+               end if;
+            end;
          elsif A = "--if1" then
             Interface_1.Enabled := True;
          elsif A = "--mdr" then
@@ -354,7 +400,11 @@ begin
          end if;
          for T of Timed (1 .. Timed_Count) loop
             if T.Frame = F then
-               Machine.Type_Text (To_String (T.Text));
+               if To_String (T.Text) = (1 => ASCII.NUL) then
+                  Machine.NMI_Button;       --  --nmi-at
+               else
+                  Machine.Type_Text (To_String (T.Text));
+               end if;
             end if;
          end loop;
          Machine.Run_Frame;

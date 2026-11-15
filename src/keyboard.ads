@@ -96,6 +96,10 @@ package Keyboard is
 
    procedure Type_Combo (C : Combo; Hold_Frames : Positive := 2);
    procedure Type_Keys (S : String);
+
+   function Extended_Symbol_Key (C : Character) return Character;
+   --  The Spectrum's extended mode symbols (SYMBOL SHIFT + this letter in
+   --  E mode): ~ | \ { } [ ]; ' ' for other characters.
    --  Queue keys to be pressed (one per few frames); LF = ENTER.
    procedure Type_Pause (Frames : Positive);
    procedure Type_Wait (Max_Frames : Positive);

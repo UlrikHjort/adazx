@@ -43,6 +43,9 @@ use type Keyboard.Joy_Type;
 with Tape;
 with DSK;
 with Interface_1;
+with DivMMC;
+with Fat_Image;
+with Ada.Environment_Variables;
 with FDC765;
 with Disasm;
 with Typist;
@@ -259,6 +262,18 @@ package body Machine is
 
    function Bus_Fetch (Addr : Word) return Byte is
    begin
+      --  DivMMC: automapping on the opcode fetches of its entry points
+      if DivMMC.Enabled and then not Config.Is_ZX81
+        and then not Memory.Special_Paging
+      then
+         DivMMC.Before_Fetch (Addr);
+         declare
+            V : constant Byte := Fetch_Byte (Addr);
+         begin
+            DivMMC.After_Fetch (Addr);
+            return V;
+         end;
+      end if;
       --  Interface 1: shadow ROM in at &0008 / &1708, out after &0700
       if Interface_1.Enabled and then Model in Config.ZX48 .. Config.Plus2
       then
@@ -365,7 +380,9 @@ package body Machine is
          return V;
       end if;
       IO_Pre (Port);
-      if Interface_1.Port_Selected (Port)
+      if DivMMC.Port_Selected (Port) then
+         V := DivMMC.Port_In (Port);
+      elsif Interface_1.Port_Selected (Port)
         and then Model in Config.ZX48 .. Config.Plus2
       then
          V := Interface_1.Port_In (Port);
@@ -422,7 +439,9 @@ package body Machine is
          return;
       end if;
       IO_Pre (Port);
-      if Interface_1.Port_Selected (Port)
+      if DivMMC.Port_Selected (Port) then
+         DivMMC.Port_Out (Port, Value);
+      elsif Interface_1.Port_Selected (Port)
         and then Model in Config.ZX48 .. Config.Plus2
       then
          Interface_1.Port_Out (Port, Value);
@@ -541,6 +560,7 @@ package body Machine is
       AY.Reset;
       FDC765.Reset;
       Interface_1.Reset;
+      DivMMC.Power_On;
       FDC765.Motor := False;
       Restart_Frame_State;
       Last_FE := 0;
@@ -588,6 +608,24 @@ package body Machine is
          when Config.ZX81 => Load_ROM ("zx81.rom", 0, 16#2000#, Ok);
          when Config.ZX80 => Load_ROM ("zx80.rom", 0, 16#1000#, Ok);
       end case;
+      if DivMMC.Enabled and then not DivMMC.ROM_Loaded then
+         declare
+            P : constant String := Find_ROM ("esxmmc.bin");
+            Ok2 : Boolean := False;
+         begin
+            if P /= "" then
+               DivMMC.Load_ROM (P, Ok2);
+            end if;
+            if not Ok2 then
+               Append (Err, "missing ROM esxmmc.bin (DivMMC firmware, " &
+                         "esxDOS from www.esxdos.org)" & ASCII.LF);
+               DivMMC.Enabled := False;
+            end if;
+         end;
+      end if;
+      if DivMMC.Enabled then
+         Interface_1.Enabled := False;      --  both map over the ROM
+      end if;
       if Interface_1.Enabled and then not Interface_1.ROM_Loaded then
          declare
             P : constant String := Find_ROM ("if1-2.rom");
@@ -1163,6 +1201,7 @@ package body Machine is
       if Memory.Current_ROM /= Memory.Basic48_ROM
         or else Memory.Special_Paging
         or else Interface_1.Paged       --  the shadow ROM is not BASIC's
+        or else DivMMC.Active
       then
          return;
       end if;
@@ -1912,6 +1951,69 @@ package body Machine is
       DSK.Flush_All;
       Interface_1.Flush_All;
    end Shutdown;
+
+   procedure Set_DivMMC (On : Boolean) is
+      Ok : Boolean;
+   begin
+      DivMMC.Enabled := On;
+      if Powered then
+         Power_On (Model, To_String (ROM_Dir_Used), Ok);
+      end if;
+   end Set_DivMMC;
+
+   function DivMMC_Fitted return Boolean is
+     (DivMMC.Enabled and then not Config.Is_ZX81);
+
+   procedure Insert_SD (Path : String; Ok : out Boolean) is
+   begin
+      DivMMC.Insert (Path, Ok);
+      if not Ok then
+         Err := To_Unbounded_String (DivMMC.Error_Message);
+      end if;
+   end Insert_SD;
+
+   procedure Eject_SD is
+   begin
+      DivMMC.Eject;
+   end Eject_SD;
+
+   function SD_Name return String is (DivMMC.Card_Name);
+   function SD_Active return Boolean is (DivMMC.Card_Active);
+
+   procedure Make_SD (Image : String; Dir : String; Ok : out Boolean) is
+      Esx : constant String := Find_ROM ("esxdos");
+   begin
+      if Dir /= "" and then Esx /= "" then
+         Fat_Image.Build (Image, (new String'(Dir), new String'(Esx)), Ok);
+      elsif Dir /= "" then
+         Fat_Image.Build (Image, (1 => new String'(Dir)), Ok);
+      elsif Esx /= "" then
+         Fat_Image.Build (Image, (1 => new String'(Esx)), Ok);
+      else
+         Fat_Image.Blank (Image, Ok);
+      end if;
+      if not Ok then
+         Err := To_Unbounded_String (Fat_Image.Error_Message);
+         return;
+      end if;
+      DivMMC.Enabled := True;
+      Insert_SD (Image, Ok);
+   end Make_SD;
+
+   procedure SD_From_Folder (Dir : String; Ok : out Boolean) is
+      Cache : constant String :=
+        Ada.Environment_Variables.Value ("HOME", "/tmp") & "/.cache/adazx";
+   begin
+      Ada.Directories.Create_Path (Cache);
+      DivMMC.Eject;
+      Make_SD (Cache & "/sd-folder.img", Dir, Ok);
+   end SD_From_Folder;
+
+   procedure New_SD (Path : String; Ok : out Boolean) is
+   begin
+      DivMMC.Eject;
+      Make_SD (Path, "", Ok);
+   end New_SD;
 
    procedure Set_Interface_1 (On : Boolean) is
       Ok : Boolean;

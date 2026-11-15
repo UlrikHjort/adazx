@@ -26,6 +26,7 @@
 with Interfaces; use Interfaces;
 with Config; use Config;
 with Interface_1;
+with DivMMC;
 
 package body Memory is
 
@@ -149,8 +150,12 @@ package body Memory is
       if Is_ZX81 then
          return Store (ZX81_Offset (Addr));
       end if;
-      if Interface_1.Paged and then Addr < 16#4000# then
-         return Interface_1.ROM_Byte (Addr);
+      if Addr < 16#4000# then
+         if DivMMC.Active then
+            return DivMMC.Read (Addr);
+         elsif Interface_1.Paged then
+            return Interface_1.ROM_Byte (Addr);
+         end if;
       end if;
       return Store (Slot_Base (S (Addr)) + Natural (Addr and 16#3FFF#));
    end Read;
@@ -165,6 +170,8 @@ package body Memory is
                Store (O) := V;
             end if;
          end;
+      elsif Addr < 16#4000# and then DivMMC.Active then
+         DivMMC.Write (Addr, V);
       elsif Slot_Writable (S (Addr)) then
          Store (Slot_Base (S (Addr)) + Natural (Addr and 16#3FFF#)) := V;
       end if;

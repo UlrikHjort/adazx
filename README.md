@@ -23,7 +23,7 @@ ZX81, the "Tape Loader" menu entry on the 128K models. `.bas` / `.b81`
 files are tokenised and RUN; `.asm` files are assembled and started with
 `RANDOMIZE USR` (Spectrum) or put into a REM line at 16514 (ZX81).
 
-Options: `--print-log` (echo what the ROM prints to stdout, never stop at scroll?), `--roms DIR`, `--disc FILE` (+3 drive A), `--if1`, `--mdr FILE` (Interface 1, cartridge in Microdrive 1), `--1k` (ZX81 without the 16K pack), `--zonx` / `--quicksilva` (ZX81 sound board), `--ram2000`
+Options: `--sd FILE` / `--sd-dir DIR` / `--new-sd FILE` / `--divmmc` (DivMMC with esxDOS), `--nmi-at FRAME`, `--print-log` (echo what the ROM prints to stdout, never stop at scroll?), `--roms DIR`, `--disc FILE` (+3 drive A), `--if1`, `--mdr FILE` (Interface 1, cartridge in Microdrive 1), `--1k` (ZX81 without the 16K pack), `--zonx` / `--quicksilva` (ZX81 sound board), `--ram2000`
 (ZX81 8K RAM at &2000), `--issue2`, `--real-tape` (no flash loading),
 `--attach FILE`, and for testing `--headless N` (run N frames, save
 `shot.png`), `--png FILE`, `--type TEXT` (`\n` = ENTER), `--type-at FRAME
@@ -48,6 +48,7 @@ the current directory, `/usr/share/spectrum-roms` and `/usr/share/fuse`.
 | ZX81 | `zx81.rom` (8 KB, the "improved" version 2 ROM) |
 | ZX80 | `zx80.rom` (4 KB) |
 | Interface 1 | `if1-2.rom` (8 KB, edition 2; in the spectrum-roms package) |
+| DivMMC | `esxmmc.bin` (8 KB esxDOS firmware) and the folder `esxdos/` with esxDOS's `SYS`, `BIN` and `TMP` folders (from the esxDOS zip) |
 
 **Spectrum:** Amstrad allow the Spectrum ROMs to be distributed with
 emulators: *"Amstrad have kindly given their permission for the
@@ -59,6 +60,11 @@ AdaZX finds them.
 **ZX81:** the ZX81 ROM belongs to Nine Tiles, and there is no published
 licence to redistribute it. Many emulators ship it (sz81, EightyOne).
 Use a copy you are entitled to use, and do not pass it on with AdaZX.
+
+**esxDOS** (Papaya Dezign) is free to download from www.esxdos.org but
+states no licence, so it is not included either: put `ESXMMC.BIN` from the
+zip in `roms/` as `esxmmc.bin`, and its `SYS`, `BIN` and `TMP` folders in
+`roms/esxdos/`.  AdaZX then puts them on every SD card it builds.
 
 ## What is emulated
 
@@ -74,6 +80,7 @@ Use a copy you are entitled to use, and do not pass it on with AdaZX.
 | Interface 1 | Shadow ROM paged at &0008 / &1708 and out after &0700, eight Microdrives with .mdr cartridges (read-driven tape loop with GAP / SYNC as in Fuse), FORMAT / SAVE * / LOAD * / CAT, cartridges written back; blank cartridges (File menu or `--new-mdr`); a .mdr autostarts by loading "run". RS232 and network are not connected. |
 | ZX80 | The ZX81 display hardware without the NMI generator (a picture only while the ROM waits for a key, as on the real machine), 4K ROM, 1K or 16K RAM; .o files load through the ROM's LOAD and SAVE writes .o; ZX80 BASIC (integer, operators as tokens) in the tokenizer, lister, typing and Forge; machine code in a REM line at 16427 called with PRINT USR (the ZX80's USR returns HL). |
 | ZX81 / ZX80 sound | AY sound boards: the ZON X-81 (`--zonx`; ports &DF / &CF select, &0F writes; 1.625 MHz) and the Quicksilva board (`--quicksilva`; &7FFF select, &7FFE write; 0.8125 MHz), also in the Machine menu. |
+| DivMMC | esxDOS's interface: 8K ROM, 512K RAM, automapping (&0000, &0008, &0038, &0066, &04C6, &0562, &3Dxx; off at &1FF8), port &E3 (CONMEM, MAPRAM, bank), an SDHC card on SPI (ports &E7 / &EB) on an image file, written in place. `--sd FILE` inserts an image, `--sd-dir DIR` builds a FAT16 card from a host folder (8.3 names; esxDOS's system folders added), `--new-sd FILE` makes a new card; File and Machine menus too. In BASIC: `.ls`, `.cd`, `.tapein game.tap` then `LOAD ""`, `SAVE *"name"`; the NMI (Alt+N) opens esxDOS's file browser. 48K, 128K, +2, +2A and +3. |
 | Joysticks | Kempston, Sinclair 1 / 2, Cursor; keypad, cursor keys or a game controller. |
 | ZX81 | Display generated as on the real machine: the CPU executes the display file above 32K, the ULA turns characters into NOPs and fetches their pattern (I register, line counter), HSYNC / NMI generator / VSYNC from the ports, INT from A6 during refresh; SLOW and FAST mode, WRX hi-res (pattern from RAM via the refresh address), pseudo hi-res with a VSYNC per scanline (short pulses don't start a frame; HSYNC kept free-running under DI), 1K or 16K, optional 8K RAM at &2000. .p files load through the ROM's LOAD (trap), SAVE writes a .p. |
 

@@ -79,6 +79,7 @@ with Settings;
 with Host_Joystick;
 with Tape;
 with Interface_1;
+with DivMMC;
 
 package body GUI is
 
@@ -102,7 +103,7 @@ package body GUI is
    Item_Auto_Play : Gtk_Check_Menu_Item;
    Item_Tape_Sound : Gtk_Check_Menu_Item;
    Item_16K, Item_2000, Item_Issue2, Item_IF1 : Gtk_Check_Menu_Item;
-   Item_ZONX, Item_QS : Gtk_Check_Menu_Item;
+   Item_ZONX, Item_QS, Item_DivMMC : Gtk_Check_Menu_Item;
    Model_Items : array (Model_Type) of Gtk_Radio_Menu_Item;
    Updating_Menu : Boolean := False;
 
@@ -167,6 +168,11 @@ package body GUI is
              then " M2: " & Short (Machine.Microdrive_Name (2)) else "") &
             (if Machine.Microdrive_Active then " [*]" else " [ ]")
           else "") &
+         (if Machine.DivMMC_Fitted
+          then "  |  SD: " & (if Machine.SD_Name = "" then "-"
+                              else Short (Machine.SD_Name)) &
+            (if Machine.SD_Active then " [*]" else " [ ]")
+          else "") &
          (if not Machine.Is_ZX81
           then "  |  joystick " & Joystick_Name else "") &
          (if Machine.RZX_Status /= "" then "  |  " & Machine.RZX_Status
@@ -190,6 +196,7 @@ package body GUI is
       Item_QS.Set_Active (Config."=" (Config.ZX81_Sound, Config.Quicksilva));
       Item_Issue2.Set_Active (Machine.Issue_2);
       Item_IF1.Set_Active (Machine.Interface_1_Fitted);
+      Item_DivMMC.Set_Active (Machine.DivMMC_Fitted);
       Model_Items (Machine.Model).Set_Active (True);
       Updating_Menu := False;
       if not Machine.Is_ZX81 then
@@ -506,6 +513,106 @@ package body GUI is
       end if;
    end On_New_MDR;
 
+   function Choose_Folder (Title : String) return String is
+      Dlg : Gtk_File_Chooser_Dialog;
+      W : Gtk_Widget;
+      pragma Unreferenced (W);
+      Result : Unbounded_String;
+   begin
+      Gtk_New (Dlg, Title, Win, Gtk.File_Chooser.Action_Select_Folder);
+      W := Dlg.Add_Button ("_Cancel", Gtk_Response_Cancel);
+      W := Dlg.Add_Button ("_Select", Gtk_Response_Accept);
+      if Length (Last_Dir) > 0 then
+         declare
+            Ok : constant Boolean :=
+              Gtk.File_Chooser.Set_Current_Folder
+                (+Dlg, To_String (Last_Dir));
+            pragma Unreferenced (Ok);
+         begin
+            null;
+         end;
+      end if;
+      if Dlg.Run = Gtk_Response_Accept then
+         Result := To_Unbounded_String
+           (Gtk.File_Chooser.Get_Filename (+Dlg));
+      end if;
+      Dlg.Destroy;
+      Keyboard.Release_All;
+      return To_String (Result);
+   end Choose_Folder;
+
+   procedure SD_Result (Ok : Boolean) is
+   begin
+      if not Ok then
+         Message ("SD card: " & Machine.Error_Message);
+      elsif not Machine.DivMMC_Fitted then
+         Message ("Fit the DivMMC (Machine menu) to use the card.");
+      end if;
+      Sync_Menu;
+      Update_Status;
+   end SD_Result;
+
+   procedure On_SD_Insert (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+      Path : constant String :=
+        Choose_File ("Insert SD card image", ("img", "mmc", "hdf"),
+                     "SD card images (img, mmc, hdf)");
+      Ok : Boolean;
+   begin
+      if Path /= "" then
+         Machine.Insert_SD (Path, Ok);
+         SD_Result (Ok);
+      end if;
+   end On_SD_Insert;
+
+   procedure On_SD_Folder (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+      Dir : constant String := Choose_Folder ("SD card from a folder");
+      Ok : Boolean;
+   begin
+      if Dir /= "" then
+         Machine.SD_From_Folder (Dir, Ok);
+         if Ok and then not Machine.DivMMC_Fitted then
+            Machine.Set_DivMMC (True);
+         end if;
+         SD_Result (Ok);
+      end if;
+   end On_SD_Folder;
+
+   procedure On_SD_New (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+      Path : constant String :=
+        Choose_Save_File ("Create an SD card image", "sdcard.img");
+      Ok : Boolean;
+   begin
+      if Path /= "" then
+         Machine.New_SD (Path, Ok);
+         SD_Result (Ok);
+      end if;
+   end On_SD_New;
+
+   procedure On_SD_Eject (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+   begin
+      Machine.Eject_SD;
+      Update_Status;
+   end On_SD_Eject;
+
+   procedure On_DivMMC (Item : access Gtk_Check_Menu_Item_Record'Class) is
+   begin
+      if not Updating_Menu then
+         Machine.Set_DivMMC (Item.Get_Active);
+         if Item.Get_Active and then not Machine.DivMMC_Fitted
+           and then not Machine.Is_ZX81
+         then
+            Message ("Cannot fit the DivMMC:" & ASCII.LF &
+                     Machine.Error_Message);
+         end if;
+         Sync_Menu;
+         Update_Status;
+      end if;
+   end On_DivMMC;
+
    procedure On_IF1 (Item : access Gtk_Check_Menu_Item_Record'Class) is
    begin
       if not Updating_Menu then
@@ -803,6 +910,8 @@ package body GUI is
                     Config.ZX81_Sound_Type'Image (Config.ZX81_Sound));
       Settings.Set ("issue2", Machine.Issue_2);
       Settings.Set ("interface1", Interface_1.Enabled);
+      Settings.Set ("divmmc", DivMMC.Enabled);
+      Settings.Set ("sdcard", Machine.SD_Name);
       Settings.Set ("lastdir", To_String (Last_Dir));
       declare
          W, H : Gint;
@@ -1290,6 +1399,19 @@ package body GUI is
       if not Interface_1.Enabled then
          Interface_1.Enabled := Settings.Get ("interface1", False);
       end if;
+      if not DivMMC.Enabled then
+         DivMMC.Enabled := Settings.Get ("divmmc", False);
+      end if;
+      if Machine.SD_Name = "" then
+         declare
+            P : constant String := Settings.Get ("sdcard", "");
+            Ok : Boolean;
+         begin
+            if P /= "" and then Ada.Directories.Exists (P) then
+               Machine.Insert_SD (P, Ok);
+            end if;
+         end;
+      end if;
       Last_Dir := To_Unbounded_String (Settings.Get ("lastdir", ""));
       begin
          Keyboard.Joystick := Keyboard.Joy_Type'Value
@@ -1341,6 +1463,12 @@ package body GUI is
       Add_Item (M_File, "Insert Microdrive cartridge 2...", On_MDR_2'Access);
       Add_Item (M_File, "Eject the Microdrive cartridges", On_MDR_Eject'Access);
       Add_Item (M_File, "New blank Microdrive cartridge...", On_New_MDR'Access);
+      Add_Item (M_File, "Insert _SD card image (DivMMC)...",
+                On_SD_Insert'Access);
+      Add_Item (M_File, "SD card from a _folder (DivMMC)...",
+                On_SD_Folder'Access);
+      Add_Item (M_File, "New SD card image...", On_SD_New'Access);
+      Add_Item (M_File, "Eject the SD card", On_SD_Eject'Access);
       Add_Separator (M_File);
       Add_Item (M_File, "Insert _tape (.tap .tzx .p)... (Alt+T)",
                 On_Attach_Tape'Access);
@@ -1379,6 +1507,8 @@ package body GUI is
                  On_ZX81_Option'Access);
       Add_Check (M_Machine, "Interface _1 with Microdrives (48K / 128K)",
                  Item_IF1, On_IF1'Access);
+      Add_Check (M_Machine, "_DivMMC with esxDOS (SD card; NMI = browser)",
+                 Item_DivMMC, On_DivMMC'Access);
       Add_Separator (M_Machine);
       Add_Item (M_Machine, "_Reset (Alt+R)", On_Reset'Access);
       Add_Item (M_Machine, "_NMI (Alt+N)", On_NMI'Access);

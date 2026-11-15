@@ -459,6 +459,12 @@ package body Keyboard is
             Wait => True));
    end Type_Wait;
 
+   function Extended_Symbol_Key (C : Character) return Character is
+     (case C is
+         when '~' => 'A', when '|' => 'S', when '\' => 'D',
+         when '{' => 'F', when '}' => 'G', when '[' => 'Y', when ']' => 'U',
+         when others => ' ');
+
    procedure Type_Keys (S : String) is
       Found : Boolean;
       C : Combo;
@@ -466,6 +472,11 @@ package body Keyboard is
       for Ch of S loop
          if Ch = ASCII.LF or else Ch = ASCII.CR then
             Type_Combo ((Key => K_Enter, others => False));
+         elsif not Config.Is_ZX81 and then Extended_Symbol_Key (Ch) /= ' '
+         then
+            Type_Combo ((Key => K_Sym, Caps => True, Sym => False));
+            Type_Combo ((Key => Letters (Extended_Symbol_Key (Ch)),
+                         Caps => False, Sym => True));
          else
             C := Char_Combo (Ch, Found);
             if Found then

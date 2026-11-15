@@ -130,6 +130,19 @@ package Machine is
 
    --  Interface 1 and Microdrives (48K / 128K / +2)
    procedure Set_Interface_1 (On : Boolean);
+
+   --  DivMMC (esxDOS) and its SD card
+   procedure Set_DivMMC (On : Boolean);       --  fitted from the next reset
+   function DivMMC_Fitted return Boolean;
+   procedure Insert_SD (Path : String; Ok : out Boolean);
+   procedure Eject_SD;
+   function SD_Name return String;
+   function SD_Active return Boolean;
+   procedure SD_From_Folder (Dir : String; Ok : out Boolean);
+   --  A card image (in ~/.cache/adazx) with the folder's files, and the
+   --  esxDOS system folders when esxdos/ is in the ROM folder
+   procedure New_SD (Path : String; Ok : out Boolean);
+   --  A new card image with the esxDOS system folders (when found)
    --  Fit or remove the Interface 1 (a power-on follows).
    function Interface_1_Fitted return Boolean;
    procedure Insert_Microdrive (Drive : Positive; Path : String;

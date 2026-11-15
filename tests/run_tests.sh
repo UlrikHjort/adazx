@@ -143,4 +143,21 @@ bin/adazx --headless 20000 --png "$T/x.png" --print-log --type-at 300 '\n' \
   --type-at 15000 ' ' tests/timing/timing_tests_48k_v1.0.z80 > "$T/tm.log"
 echo "pass $(grep -c Pass "$T/tm.log") fail $(grep -c Fail "$T/tm.log")" > "$T/tm.out"
 check "48K timing tests (all 72 cases, floating bus)" "$T/tm.out" "^pass 7[2-9] fail 0$"
+# DivMMC with esxDOS (only when roms/esxmmc.bin and roms/esxdos/ exist:
+# esxDOS is not part of AdaZX): a card built from a folder, a tape loaded
+# through esxDOS's tape emulation, a file saved to the card
+if [ -f roms/esxmmc.bin ] && [ -d roms/esxdos ]; then
+  rm -rf "$T/sdf" && mkdir -p "$T/sdf/My Programs"
+  printf '10 PRINT "FROM THE SD CARD"\n' > "$T/sdf/My Programs/hello.bas"
+  bin/adazx --basic "$T/sdf/My Programs/hello.bas" > /dev/null
+  rm "$T/sdf/My Programs/hello.bas"
+  bin/adazx --sd-dir "$T/sdf" --headless 1500 --png "$T/x.png" --screen \
+    --type-at 450 '.cd myprog~1\n' --type-at 550 '.tapein hello.tap\n' \
+    --type-at 650 'LOAD ""\n' --type-at 900 'RUN\n' \
+    --type-at 1000 'SAVE *"saved.bas"\n' --type-at 1200 '.ls\n' > "$T/sd.out"
+  check "DivMMC: esxDOS loads a tape from a folder card" "$T/sd.out" "FROM THE SD CARD"
+  check "DivMMC: esxDOS saves to the card" "$T/sd.out" "SAVED.BAS"
+else
+  echo "skip DivMMC (no roms/esxmmc.bin and roms/esxdos/)"
+fi
 exit $fail

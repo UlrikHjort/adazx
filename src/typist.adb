@@ -108,7 +108,13 @@ package body Typist is
                            Found : Boolean;
                            Combo_K : constant Combo := Char_Combo (C, Found);
                         begin
-                           if D = Basic.ZX81 and then B = 11 then
+                           if D = Basic.Spectrum
+                             and then Extended_Symbol_Key (C) /= ' '
+                           then
+                              Enter_E_Mode;
+                              Press (Key_Of (Extended_Symbol_Key (C)),
+                                     Sym => True);
+                           elsif D = Basic.ZX81 and then B = 11 then
                               Press (Letter ('P'), Caps => True);
                            elsif D = Basic.ZX80 and then B = 1 then
                               Press (Letter ('Y'), Caps => True);
