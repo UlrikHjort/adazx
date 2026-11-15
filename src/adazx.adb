@@ -44,6 +44,8 @@
 --    --beta             the Beta 128 disk interface (TR-DOS) on a 48K / 128K
 --    --trd FILE         a .trd / .scl disc in TR-DOS drive A (and --beta)
 --    --new-trd FILE     a new blank .trd in drive A
+--    --disassemble FROM TO FILE  headless, at the end: memory as source
+--    --entry ADDR       a code entry point for --disassemble (repeatable)
 --    --mouse            the Kempston mouse (--mouse-set X Y BUTTONS: fixed)
 --    --printer PNG      the ZX Printer; headless: the paper saved as PNG
 --    --multiface        the Multiface 128 (roms/mf128.rom; NMI = red button)
@@ -116,6 +118,10 @@ procedure AdaZX is
    Disc_A : Unbounded_String;
    MDR : Unbounded_String;
    Printout : Unbounded_String;      --  --printer: the paper as a PNG
+   Dis_File : Unbounded_String;      --  --disassemble FROM TO FILE
+   Dis_From, Dis_To : Word := 0;
+   Entry_Points : Machine.Address_List (1 .. 64);
+   Entry_Count : Natural := 0;
    Profile : Boolean := False;
    type Timed_Text is record
       Frame : Natural := 0;
@@ -282,6 +288,15 @@ begin
                   Put_Line (Machine.Error_Message);
                end if;
             end;
+         elsif A = "--disassemble" then          --  FROM TO FILE (hex)
+            Dis_From := Word'Value ("16#" & Next & "#");
+            Dis_To := Word'Value ("16#" & Next & "#");
+            Dis_File := To_Unbounded_String (Next);
+         elsif A = "--entry" then
+            if Entry_Count < Entry_Points'Last then
+               Entry_Count := Entry_Count + 1;
+               Entry_Points (Entry_Count) := Word'Value ("16#" & Next & "#");
+            end if;
          elsif A = "--mouse" then
             Peripherals.Mouse_On := True;
          elsif A = "--mouse-set" then              --  X Y BUTTONS (headless)
@@ -478,6 +493,19 @@ begin
       end loop;
       if Machine.Break_Hit then
          Put_Line ("stopped: " & Machine.Stop_Text);
+      end if;
+      if Length (Dis_File) > 0 then
+         declare
+            Bytes : Natural;
+         begin
+            Machine.Export_Source
+              (Dis_From, Dis_To,
+               (if Entry_Count = 0 then (1 => Dis_From)
+                else Entry_Points (1 .. Entry_Count)),
+               To_String (Dis_File), Ok, Bytes);
+            Put_Line ("disassembled to " & To_String (Dis_File) & ":" &
+                      Natural'Image (Bytes) & " bytes of code");
+         end;
       end if;
       if Length (Printout) > 0 then
          Peripherals.Save_Printout (To_String (Printout), Ok);

@@ -1209,6 +1209,108 @@ package body Forge is
       return To_String (Result);
    end Ask_Condition;
 
+   --  A line of text from the user ("" = cancelled)
+   function Ask_Text (Title, Prompt, Default : String) return String is
+      Dlg : Gtk_Dialog;
+      E : Gtk_Entry;
+      L : Gtk_Label;
+      W : Gtk_Widget;
+      pragma Unreferenced (W);
+      Result : Unbounded_String;
+   begin
+      Gtk_New (Dlg, Title, Win, Modal);
+      W := Dlg.Add_Button ("_Cancel", Gtk_Response_Cancel);
+      W := Dlg.Add_Button ("_OK", Gtk_Response_OK);
+      Dlg.Set_Default_Response (Gtk_Response_OK);
+      Gtk_New (L, Prompt);
+      L.Set_Halign (Align_Start);
+      Gtk_New (E);
+      E.Set_Text (Default);
+      E.Set_Activates_Default (True);
+      E.Set_Width_Chars (40);
+      Dlg.Get_Content_Area.Pack_Start (L, False, False, 6);
+      Dlg.Get_Content_Area.Pack_Start (E, False, False, 6);
+      Dlg.Show_All;
+      if Dlg.Run = Gtk_Response_OK then
+         Result := To_Unbounded_String (E.Get_Text);
+      end if;
+      Dlg.Destroy;
+      return To_String (Result);
+   end Ask_Text;
+
+   --  Memory as a source file in a new tab: "FROM TO [ENTRY ...]" (hex)
+   procedure Disassemble_To_Tab is
+      Answer : constant String :=
+        Ask_Text ("Disassemble memory",
+                  "From, to and code entry points (hex), e.g." & ASCII.LF &
+                  "  8000 9FFF 8000 8123" & ASCII.LF &
+                  "Addresses the profiler saw executing count as code too." &
+                  ASCII.LF & "The source assembles back to the same bytes.",
+                  "8000 FFFF 8000");
+      Words : array (1 .. 66) of Word;
+      N : Natural := 0;
+      P : Natural := Answer'First;
+   begin
+      while P <= Answer'Last loop
+         while P <= Answer'Last and then Answer (P) in ' ' | ',' | '$' loop
+            P := P + 1;
+         end loop;
+         exit when P > Answer'Last;
+         declare
+            Q : Natural := P;
+         begin
+            while Q <= Answer'Last and then Answer (Q) not in ' ' | ',' loop
+               Q := Q + 1;
+            end loop;
+            if N < Words'Last then
+               N := N + 1;
+               Words (N) := Word'Value ("16#" & Answer (P .. Q - 1) & "#");
+            end if;
+            P := Q;
+         end;
+      end loop;
+      if N < 2 or else Words (2) < Words (1) then
+         if Answer /= "" then
+            Print ("disassemble: give FROM TO [ENTRY ...] in hex");
+         end if;
+         return;
+      end if;
+      declare
+         Dir : constant String :=
+           (if Project_Dir /= "" then Project_Dir
+            else Ada.Directories.Current_Directory);
+         Path : constant String :=
+           Dir & "/dis_" & Disasm.Hex4 (Words (1)) & "_" &
+           Disasm.Hex4 (Words (2)) & ".asm";
+         Entries : Machine.Address_List (1 .. Natural'Max (N - 2, 1));
+         Ok : Boolean;
+         Bytes : Natural;
+         T : Natural;
+      begin
+         if N > 2 then
+            for I in 3 .. N loop
+               Entries (I - 2) := Words (I);
+            end loop;
+         else
+            Entries (1) := Words (1);
+         end if;
+         Machine.Export_Source (Words (1), Words (2), Entries, Path, Ok,
+                                Bytes);
+         if not Ok then
+            Print ("cannot write " & Path);
+            return;
+         end if;
+         Print ("disassembled $" & Disasm.Hex4 (Words (1)) & "-$" &
+                Disasm.Hex4 (Words (2)) & " to " & Path & ":" &
+                Natural'Image (Bytes) & " bytes of code");
+         T := Open_Path (Path);
+         pragma Unreferenced (T);
+      end;
+   exception
+      when Constraint_Error =>
+         Print ("disassemble: give FROM TO [ENTRY ...] in hex");
+   end Disassemble_To_Tab;
+
    --  Label and source line of an address, for the profile
    function Source_Name (A : Word) return String is
       File, Line : Natural;
@@ -1302,7 +1404,7 @@ package body Forge is
       A_Build, A_Run, A_Rebuild_Run, A_Tape,
       A_Pause, A_Step_Into, A_Step_Over,
       A_Step_Out, A_Run_To_Cursor, A_Toggle_BP, A_BP_Condition, A_Clear_BPs,
-      A_Profile_Start, A_Profile_Show,
+      A_Profile_Start, A_Profile_Show, A_Disassemble,
       A_Reset,
       A_Emulator, A_UDG, A_Screen, A_ZX81_Screen,
       A_Help);
@@ -1492,6 +1594,8 @@ package body Forge is
          when A_Profile_Start =>
             Machine.Profile_Start;
             Print ("profiler started (F5 runs; Debug > Show profile)");
+         when A_Disassemble =>
+            Disassemble_To_Tab;
          when A_Profile_Show =>
             Machine.Profile_Stop;
             Show_Profile;
@@ -1825,6 +1929,7 @@ package body Forge is
       Separator (M);
       Item (M, "Start _profiler (clears the counts)", A_Profile_Start);
       Item (M, "Stop profiler and show _profile", A_Profile_Show);
+      Item (M, "_Disassemble memory to a source tab...", A_Disassemble);
       Item (M, "_Reset machine", A_Reset);
       Item (M, "Show _emulator", A_Emulator, GDK_F12);
       M := Menu ("_Tools");

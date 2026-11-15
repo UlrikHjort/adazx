@@ -47,6 +47,7 @@ with Tape;
 with DSK;
 with Interface_1;
 with DivMMC;
+with Disasm_Export;
 with Peripherals;
 with Beta_Disk;
 with Fat_Image;
@@ -197,6 +198,24 @@ package body Machine is
    ---------------------------------------------------------------------
    --  Profiler
    ---------------------------------------------------------------------
+
+   function Was_Executed (Addr : Word) return Boolean is
+     (Prof_N (Addr) > 0);
+
+   procedure Export_Source (From, To : Word; Entries : Address_List;
+                            Path : String; Ok : out Boolean;
+                            Code_Bytes : out Natural) is
+      E : Disasm_Export.Address_List (Entries'Range);
+   begin
+      for I in Entries'Range loop
+         E (I) := Entries (I);
+      end loop;
+      Disasm_Export.Export (Peek_Byte'Access, From, To, E,
+                            Was_Executed'Access, Path, Ok, Code_Bytes);
+      if not Ok then
+         Err := To_Unbounded_String ("cannot write " & Path);
+      end if;
+   end Export_Source;
 
    procedure Profile_Start is
    begin

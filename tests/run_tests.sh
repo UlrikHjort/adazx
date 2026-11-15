@@ -234,4 +234,13 @@ if [ -f roms/mf128.rom ]; then
 else
   echo "skip Multiface 128 (no roms/mf128.rom)"
 fi
+# Reverse engineering: the 48K ROM as source (with the profiler's view of
+# a BASIC program using the calculator) assembles back to the same ROM
+printf '10 FOR I=1 TO 20\n20 PRINT SIN I,SQR I,EXP (I/10)\n30 NEXT I\n' > "$T/calc.bas"
+bin/adazx --headless 900 --png "$T/x.png" --profile --disassemble 0 3fff "$T/rom.asm" \
+  --entry 0 --entry 38 --entry 66 "$T/calc.bas" > /dev/null
+bin/adazx --asm "$T/rom.asm" > /dev/null
+if [ -f roms/48.rom ] && cmp -s "$T/rom.bin" roms/48.rom; then
+  echo "same" > "$T/rom.out"; else echo "different" > "$T/rom.out"; fi
+check "disassembled 48K ROM re-assembles identically" "$T/rom.out" "^same$"
 exit $fail

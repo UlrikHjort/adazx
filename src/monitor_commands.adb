@@ -167,6 +167,59 @@ package body Monitor_Commands is
                   Print ("?syntax: b ADDR [CONDITION]");
                   return;
             end;
+         elsif First = "src" then         --  src FROM TO FILE [ENTRY ...]
+            declare
+               Parts : array (1 .. 40) of Unbounded_String;
+               N : Natural := 0;
+               P : Natural := Rest'First;
+            begin
+               while P <= Rest'Last loop
+                  while P <= Rest'Last and then Rest (P) = ' ' loop
+                     P := P + 1;
+                  end loop;
+                  exit when P > Rest'Last;
+                  declare
+                     Q : Natural := P;
+                  begin
+                     while Q <= Rest'Last and then Rest (Q) /= ' ' loop
+                        Q := Q + 1;
+                     end loop;
+                     if N < Parts'Last then
+                        N := N + 1;
+                        Parts (N) := To_Unbounded_String (Rest (P .. Q - 1));
+                     end if;
+                     P := Q;
+                  end;
+               end loop;
+               if N < 3 then
+                  Print ("?syntax: src FROM TO FILE [ENTRY ...] (hex)");
+                  return;
+               end if;
+               declare
+                  function H (S : Unbounded_String) return Word is
+                    (Word'Value ("16#" & To_String (S) & "#"));
+                  Entries : Machine.Address_List (1 .. Natural'Max (N - 3, 1));
+                  Ok : Boolean;
+                  Bytes : Natural;
+               begin
+                  if N > 3 then
+                     for I in 4 .. N loop
+                        Entries (I - 3) := H (Parts (I));
+                     end loop;
+                  else
+                     Entries (1) := H (Parts (1));
+                  end if;
+                  Machine.Export_Source (H (Parts (1)), H (Parts (2)), Entries,
+                                         To_String (Parts (3)), Ok, Bytes);
+                  Print ((if Ok then "wrote " & To_String (Parts (3)) & ":" &
+                            Natural'Image (Bytes) & " bytes of code"
+                          else "?cannot write " & To_String (Parts (3))));
+               end;
+            exception
+               when Constraint_Error =>
+                  Print ("?syntax: src FROM TO FILE [ENTRY ...] (hex)");
+            end;
+            return;
          elsif First = "prof" then
             if To_Lower (Rest) = "on" then
                Machine.Profile_Start;
@@ -315,6 +368,7 @@ package body Monitor_Commands is
                    " | > addr bytes | g [addr] go | x exit");
             Print ("b addr [condition] break (a=3 and [hl]<>0) |" &
                    " prof on | off | [n] profiler");
+            Print ("src from to file [entries] memory as assembler source");
             Print ("b addr break | bd [addr] delete | bl list |" &
                    " w [a [b]] watch (none = clear) | io chip state");
 

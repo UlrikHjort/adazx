@@ -209,6 +209,13 @@ package Machine is
    function Condition_Error (Condition : String) return String;
    --  "" when the condition is valid, else what is wrong
 
+   --  Reverse engineering: From .. To as assembler source (Disasm_Export);
+   --  code from the entries and from what the profiler saw executing
+   type Address_List is array (Positive range <>) of Word;
+   procedure Export_Source (From, To : Word; Entries : Address_List;
+                            Path : String; Ok : out Boolean;
+                            Code_Bytes : out Natural);
+
    --  Profiler: executions and T-states per instruction address
    procedure Profile_Start;               --  clears the counts
    procedure Profile_Stop;

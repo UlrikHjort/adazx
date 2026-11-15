@@ -131,7 +131,13 @@ zf`, `{sp} = label`: registers, flags `sf zf hf pf nf cf`, `[addr]` byte,
 `{addr}` word, labels, `= <> < > <= >= + - * / & | ^ << >> and or not`).
 The profiler (Debug menu) counts T-states and executions per instruction
 and shows the hottest addresses with their labels and source lines, and
-the time per source line. In the monitor: `b ADDR CONDITION`, `prof on`,
+the time per source line. "Disassemble memory to a source tab"
+(Debug menu; monitor `src FROM TO FILE [ENTRY ...]`; headless
+`--disassemble FROM TO FILE --entry ADDR`) turns memory into assembler
+source that assembles back to the same bytes: code is followed from the
+entry points and from what the profiler saw executing, jump and call
+targets and (nn) operands get labels, the rest becomes db lines and
+strings (the whole 48K ROM round-trips). In the monitor: `b ADDR CONDITION`, `prof on`,
 `prof off`, `prof [n]`; headless: `--break-if ADDR CONDITION`,
 `--profile`.
 
