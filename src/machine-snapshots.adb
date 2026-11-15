@@ -197,7 +197,7 @@ package body Machine.Snapshots is
    end Load_SNA;
 
    function Save_SNA return Byte_Array is
-      Is48 : constant Boolean := Model in Config.ZX48 | Config.TC2048;
+      Is48 : constant Boolean := Config.Is_48_Type;
       Size : constant Natural := (if Is48 then 49179 else 131103);
       D : Byte_Array (0 .. Size - 1) := (others => 0);
       SP : Word := CPU.SP;

@@ -44,7 +44,7 @@ package body Memory is
 
    function Bank_Contended (Bank : Natural) return Boolean is
      (case Model is
-         when ZX48 | TC2048 => Bank = 5,
+         when ZX48 .. TC2068 => Bank = 5,
          when Pentagon => False,
          when ZX128 | Plus2 => Bank mod 2 = 1,
          when Plus2A | Plus3 => Bank >= 4,
@@ -57,7 +57,7 @@ package body Memory is
 
    procedure Update_Map is
    begin
-      if Model in ZX48 | TC2048 or else Is_ZX81 then
+      if Is_48_Type or else Is_ZX81 then
          Set_Slot (0, ROM_Base (0), False, False);
          Set_RAM (1, 5);
          Set_RAM (2, 2);
@@ -88,7 +88,7 @@ package body Memory is
 
    function Current_ROM return Natural is
      (case Model is
-         when ZX48 | TC2048 | ZX81 | ZX80 => 0,
+         when ZX48 .. TC2068 | ZX81 | ZX80 => 0,
          when ZX128 | Plus2 | Pentagon =>
             Natural (Shift_Right (Port_7FFD, 4) and 1),
          when Plus2A | Plus3 =>
@@ -97,7 +97,7 @@ package body Memory is
 
    function Basic48_ROM return Natural is
      (case Model is
-         when ZX48 | TC2048 | ZX81 | ZX80 => 0,
+         when ZX48 .. TC2068 | ZX81 | ZX80 => 0,
          when ZX128 | Plus2 | Pentagon => 1,
          when Plus2A | Plus3 => 3);
 
@@ -154,6 +154,15 @@ package body Memory is
       if Is_ZX81 then
          return Store (ZX81_Offset (Addr));
       end if;
+      if Model = ZX16 and then Addr >= 16#8000# then
+         return 16#FF#;                 --  no RAM there
+      elsif Model = TC2068
+        and then (TC_HSR and Shift_Left (Byte'(1), Natural (Addr / 16#2000#)))
+                 /= 0
+      then
+         return (if TC_EXROM then EXROM (Natural (Addr and 16#1FFF#))
+                 else 16#FF#);          --  EXROM, or the empty dock
+      end if;
       if Addr < 16#4000# then
          if Peripherals.MF_Active then
             return Peripherals.MF_Read (Addr);
@@ -178,6 +187,13 @@ package body Memory is
                Store (O) := V;
             end if;
          end;
+      elsif (Model = ZX16 and then Addr >= 16#8000#)
+        or else (Model = TC2068
+                 and then (TC_HSR and Shift_Left (Byte'(1),
+                                                  Natural (Addr / 16#2000#)))
+                          /= 0)
+      then
+         null;                          --  nothing to write to
       elsif Addr < 16#4000# and then Peripherals.MF_Active then
          Peripherals.MF_Write (Addr, V);
       elsif Addr < 16#4000# and then DivMMC.Active then

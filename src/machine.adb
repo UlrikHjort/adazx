@@ -588,8 +588,12 @@ package body Machine is
          V := Peripherals.MF_In (Port, Memory.Port_7FFD);
       elsif DivMMC.Port_Selected (Port) then
          V := DivMMC.Port_In (Port);
-      elsif Model = Config.TC2048 and then Lo (Port) = 16#FF# then
+      elsif Config.Is_Timex and then Lo (Port) = 16#FF# then
          V := ULA.SCLD;
+      elsif Model = Config.TC2068 and then Lo (Port) = 16#F4# then
+         V := Memory.TC_HSR;
+      elsif Model = Config.TC2068 and then Lo (Port) = 16#F6# then
+         V := AY.Read;
       elsif Interface_1.Port_Selected (Port)
         and then Model in Config.ZX48 .. Config.Plus2
       then
@@ -647,8 +651,19 @@ package body Machine is
          return;
       end if;
       IO_Pre (Port);
-      if Model = Config.TC2048 and then Lo (Port) = 16#FF# then
+      if Config.Is_Timex and then Lo (Port) = 16#FF# then
          ULA.Set_SCLD (Value, T);
+         Memory.TC_EXROM := (Value and 16#80#) /= 0;
+      end if;
+      if Model = Config.TC2068 then
+         case Lo (Port) is
+            when 16#F4# => Memory.TC_HSR := Value;
+            when 16#F5# => AY.Select_Register (Value);
+            when 16#F6# =>
+               Sound.Update (T);
+               AY.Write (Value);
+            when others => null;
+         end case;
       end if;
       if Config.ULAplus and then (Port = 16#BF3B# or else Port = 16#FF3B#)
       then
@@ -731,6 +746,19 @@ package body Machine is
       return "";
    end Find_ROM;
 
+   procedure Read_ROM_File (Path : String; D : out Byte_Array;
+                            Ok : out Boolean) is
+      F : SIO.File_Type;
+   begin
+      SIO.Open (F, SIO.In_File, Path);
+      Byte_Array'Read (SIO.Stream (F), D);
+      SIO.Close (F);
+      Ok := True;
+   exception
+      when others =>
+         Ok := False;
+   end Read_ROM_File;
+
    procedure Load_ROM (Name : String; Index : Natural; Size : Natural;
                        Ok : in out Boolean) is
       Path : constant String := Find_ROM (Name);
@@ -777,8 +805,11 @@ package body Machine is
       CPU.Reset;
       T := 0;
       ULA.Reset_Extras;
+      Memory.TC_HSR := 0;
+      Memory.TC_EXROM := False;
       AY.Clock_Hz :=
         (if Model = Config.Pentagon then 1_792_000
+         elsif Model = Config.TC2068 then 1_750_000
          elsif not Config.Is_ZX81 then 1_773_400
          else (case Config.ZX81_Sound is
                   when Config.ZON_X => 1_625_000,
@@ -829,6 +860,26 @@ package body Machine is
       case M is
          when Config.ZX48 => Load_ROM ("48.rom", 0, 16#4000#, Ok);
          when Config.TC2048 => Load_ROM ("tc2048.rom", 0, 16#4000#, Ok);
+         when Config.ZX16 | Config.ZX48_NTSC =>
+            Load_ROM ("48.rom", 0, 16#4000#, Ok);
+         when Config.TC2068 =>
+            Load_ROM ("tc2068-0.rom", 0, 16#4000#, Ok);
+            declare
+               P : constant String := Find_ROM ("tc2068-1.rom");
+               D : Byte_Array (0 .. 16#1FFF#);
+               Ok2 : Boolean := False;
+            begin
+               if P /= "" then
+                  Read_ROM_File (P, D, Ok2);
+               end if;
+               if Ok2 then
+                  Memory.EXROM := D;
+               else
+                  Append (Err, "missing ROM tc2068-1.rom (the EXROM)" &
+                            ASCII.LF);
+                  Ok := False;
+               end if;
+            end;
          when Config.ZX128 | Config.Pentagon =>
             Load_ROM ("128-0.rom", 0, 16#4000#, Ok);
             Load_ROM ("128-1.rom", 1, 16#4000#, Ok);
@@ -1071,6 +1122,8 @@ package body Machine is
             return PC in 16#04CA# .. 16#04D2#;     --  waiting for a key
          when Config.ZX80 =>
             return PC in ZX80_Wait_From .. ZX80_Wait_To;
+         when Config.TC2068 =>              --  its own ROM's editor loop
+            return PC in 16#0C0E# .. 16#0C1A# | 16#11D9# .. 16#1264#;
          when others =>
             --  48 BASIC editor key wait (WAIT-KEY / KEY-INPUT loop)
             if ROM = Memory.Basic48_ROM then
@@ -1161,8 +1214,14 @@ package body Machine is
                   Stage := Wait_Loaded;
                   Stage_Frames := 0;
                end if;
-            elsif At_Prompt or else Stage_Frames > 400 then
+            elsif (At_Prompt
+                   and then (Model /= Config.TC2068 or else Stage_Frames > 150))
+              or else Stage_Frames > 400
+            then
                Typist.Type_Load;
+               if Model = Config.TC2068 and then Tape.Loaded then
+                  Tape.Play;      --  its tape routines are not trapped
+               end if;
                Stage := Wait_Loaded;
                Stage_Frames := 0;
             end if;
@@ -1222,7 +1281,11 @@ package body Machine is
                   Do_Inject;
                   Stage := Idle;
                end if;
-            elsif At_Prompt then
+            elsif At_Prompt
+              and then (Model /= Config.TC2068 or else Stage_Frames > 150)
+            then
+               --  (the TC2068 checks its memory banks just after the
+               --  prompt first appears, overwriting &8000)
                Do_Inject;
                Stage := Idle;
             end if;

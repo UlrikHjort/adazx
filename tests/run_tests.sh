@@ -243,4 +243,20 @@ bin/adazx --asm "$T/rom.asm" > /dev/null
 if [ -f roms/48.rom ] && cmp -s "$T/rom.bin" roms/48.rom; then
   echo "same" > "$T/rom.out"; else echo "different" > "$T/rom.out"; fi
 check "disassembled 48K ROM re-assembles identically" "$T/rom.out" "^same$"
+# 16K (RAMTOP 32767), NTSC 48K (60 Hz frames), TC2068 (BASIC, AY on &F5 /
+# &F6: tone A period 200 at 1.75 MHz = 547 Hz)
+bin/adazx --16 --headless 300 --png "$T/x.png" --screen \
+  --type-at 100 'PRINT PEEK 23732+256*PEEK 23733\n' > "$T/16k.out"
+check "16K Spectrum (RAMTOP)" "$T/16k.out" "^32767"
+bin/adazx --48ntsc --headless 400 --png "$T/x.png" --screen \
+  --type-at 200 'PRINT "NTSC OK"\n' > "$T/ntsc.out"
+check "48K NTSC runs BASIC" "$T/ntsc.out" "^NTSC OK"
+if [ -f roms/tc2068-0.rom ] && [ -f roms/tc2068-1.rom ]; then
+  bin/adazx --tc2068 --headless 1000 --png "$T/x.png" --wav "$T/tc.wav" \
+    tests/tc2068_ay.asm > /dev/null
+  python3 tests/wav_freq.py "$T/tc.wav" > "$T/tc.out"
+  check "TC2068 AY (547 Hz)" "$T/tc.out" "^54[678]$"
+else
+  echo "skip TC2068 (no roms/tc2068-0.rom / tc2068-1.rom)"
+fi
 exit $fail

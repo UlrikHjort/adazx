@@ -1024,6 +1024,8 @@ package body GUI is
      (case M is
          when Config.ZX48 => "48", when Config.ZX128 => "128",
          when Config.TC2048 => "tc2048", when Config.Pentagon => "pentagon",
+         when Config.ZX16 => "16", when Config.ZX48_NTSC => "48ntsc",
+         when Config.TC2068 => "tc2068",
          when Config.Plus2 => "plus2", when Config.Plus2A => "plus2a",
          when Config.Plus3 => "plus3", when Config.ZX81 => "zx81",
          when Config.ZX80 => "zx80");

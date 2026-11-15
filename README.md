@@ -1,6 +1,6 @@
 # AdaZX
 
-A ZX Spectrum (48K, 128K, +2, +2A, +3 with its disc drive), Pentagon 128, Timex TC2048, Sinclair ZX81 and ZX80
+A ZX Spectrum (16K, 48K, 48K NTSC, 128K, +2, +2A, +3 with its disc drive), Pentagon 128, Timex TC2048 and TC2068, Sinclair ZX81 and ZX80
 emulator written in Ada 2012 with GtkAda, with **Forge**: a Z80 assembler
 IDE, Sinclair BASIC editor, source-level debugger and graphics editors
 around the running machine. It is the Sinclair sibling of AdaC64
@@ -12,7 +12,7 @@ around the running machine. It is the Sinclair sibling of AdaC64
                              # libgtksourceview-4 (Forge's editor)
     bin/adazx                # 48K Spectrum (or the model used last time)
     bin/adazx --128          # also --plus2, --plus2a, --plus3, --pentagon,
-                             # --tc2048, --zx81, --zx80
+                             # --tc2048, --tc2068, --16, --48ntsc, --zx81, --zx80
     bin/adazx game.tzx       # autostart (also .tap .z80 .szx .sna .azx .rzx .p .81
                              # .scr .bas .b81 .asm)
     bin/adazx-forge          # Forge as the main window
@@ -48,11 +48,15 @@ the current directory, `/usr/share/spectrum-roms` and `/usr/share/fuse`.
 | +2A / +3 | `plus3-0.rom` .. `plus3-3.rom` |
 | Pentagon 128 | `128-0.rom`, `128-1.rom` |
 | TC2048 | `tc2048.rom` (in Fuse's ROMs; covered by Amstrad's permission) |
+| TC2068 | `tc2068-0.rom` (16 KB) and `tc2068-1.rom` (the 8 KB EXROM; in Fuse's ROMs) |
+| 16K, 48K NTSC | `48.rom` |
 | Beta 128 / TR-DOS | `trdos.rom` (16 KB, TR-DOS 5.0x) |
 | Multiface 128 | `mf128.rom` (8 KB) |
 | ZX81 | `zx81.rom` (8 KB, the "improved" version 2 ROM) |
 | ZX80 | `zx80.rom` (4 KB) |
 | Interface 1 | `if1-2.rom` (8 KB, edition 2; in the spectrum-roms package) |
+| 16K / 48K NTSC | The 16K has RAM only at &4000 - &7FFF (reads above give &FF); the NTSC 48K has 264 lines (59136 T-states, first pixel at 8960) at 3.5275 MHz, 59.65 frames a second. |
+| Timex TC2068 | The TC2048's SCLD video modes, an AY at 1.75 MHz on ports &F5 (register) / &F6 (data), the 8K EXROM and an empty dock paged per 8K chunk by port &F4 and bit 7 of &FF. Not yet: loading from tape (its tape routines in the EXROM return at once), cartridges (.dck). |
 | Pentagon 128 | 71680 T-states per frame (320 lines of 224), INT for 36 T-states, no contention and no floating bus, AY at 1.792 MHz; the 128K ROMs. |
 | Timex TC2048 | The SCLD's video modes on port &FF: second screen at &6000, 8x1 colour attributes, the 512 x 192 modes (drawn at full resolution in the window and PNG) and their colours, and bit 6 switching off the frame interrupt; port &FF reads back; .z80 / .szx keep the mode. |
 | ULAplus | `--ulaplus` or the Machine menu: the 64-colour palette (ports &BF3B / &FF3B, GGGRRRBB entries, four CLUTs chosen by FLASH / BRIGHT, the border from CLUT 0's paper entries). |

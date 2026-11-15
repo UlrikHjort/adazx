@@ -27,7 +27,7 @@
 --
 --  Usage: adazx [options] [file.tap|file.tzx|file.z80|file.sna|file.p|...]
 --    --48 / --128 / --plus2 / --plus2a / --plus3 / --pentagon / --tc2048
---    / --zx81 / --zx80
+--    / --16 / --48ntsc / --tc2068 / --zx81 / --zx80
 --    --ulaplus          the ULAplus 64-colour palette (Spectrum models)
 --                       model (default: last used, 48K)
 --    --roms DIR         ROM directory (default: roms/ next to the program)
@@ -190,7 +190,8 @@ begin
          if A = "--48" or else A = "--128" or else A = "--plus2"
            or else A = "--plus2a" or else A = "--plus3" or else A = "--zx81"
            or else A = "--zx80" or else A = "--pentagon"
-           or else A = "--tc2048"
+           or else A = "--tc2048" or else A = "--16" or else A = "--48ntsc"
+           or else A = "--tc2068"
          then
             Model := (if A = "--128" then Machine.ZX128
                       elsif A = "--plus2" then Machine.Plus2
@@ -200,6 +201,9 @@ begin
                       elsif A = "--zx80" then Config.ZX80
                       elsif A = "--pentagon" then Config.Pentagon
                       elsif A = "--tc2048" then Config.TC2048
+                      elsif A = "--tc2068" then Config.TC2068
+                      elsif A = "--16" then Config.ZX16
+                      elsif A = "--48ntsc" then Config.ZX48_NTSC
                       else Machine.ZX48);
             Model_Given := True;
          elsif A = "--ulaplus" then

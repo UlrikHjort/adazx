@@ -77,6 +77,12 @@ package Memory is
    --  0 on the 48K, 1 on the 128K / +2, 3 on the +2A / +3.
    function Special_Paging return Boolean;   --  +2A all-RAM mode
 
+   --  TC2068: port &F4 (HSR) bit n maps 8K chunk n from the EXROM (when
+   --  bit 7 of port &FF is set) or the dock (empty: reads &FF)
+   TC_HSR : Byte := 0;
+   TC_EXROM : Boolean := False;
+   EXROM : Byte_Array (0 .. 16#1FFF#) := (others => 16#FF#);
+
    function Read (Addr : Word) return Byte with Inline;
    procedure Write (Addr : Word; V : Byte) with Inline;
    procedure Poke_Any (Addr : Word; V : Byte);

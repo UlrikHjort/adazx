@@ -44,12 +44,17 @@ package body ULA is
       Pattern : array (0 .. 7) of Byte;
    begin
       case Model is
-         when ZX48 | ZX81 | ZX80 =>
+         when ZX48 | ZX16 | ZX81 | ZX80 =>
             Line_T := 224; Lines := 312; Int_Length := 32;
             Display_Start := 14_336;
             First := 14_335;
             Pattern := (6, 5, 4, 3, 2, 1, 0, 0);
-         when TC2048 =>
+         when ZX48_NTSC =>                     --  264 lines, 60 Hz
+            Line_T := 224; Lines := 264; Int_Length := 32;
+            Display_Start := 8_960;
+            First := 8_959;
+            Pattern := (6, 5, 4, 3, 2, 1, 0, 0);
+         when TC2048 | TC2068 =>
             Line_T := 224; Lines := 312; Int_Length := 32;
             Display_Start := 14_321;
             First := 14_320;
@@ -86,13 +91,13 @@ package body ULA is
 
    function Is_Screen_Address (Addr : Word) return Boolean is
      (Addr in 16#4000# .. 16#5AFF#
-      or else (Model = TC2048 and then Addr in 16#6000# .. 16#7AFF#)
-      or else (Model not in ZX48 | TC2048
+      or else (Model in TC2048 | TC2068 and then Addr in 16#6000# .. 16#7AFF#)
+      or else (Model not in ZX48 .. TC2068
                and then Addr >= 16#C000# and then Addr < 16#DB00#
                and then Memory.Bank_Of (Addr) = Memory.Screen_Bank));
 
    function Interrupts_Off return Boolean is
-     (Model = TC2048 and then (SCLD and 16#40#) /= 0);
+     (Model in TC2048 | TC2068 and then (SCLD and 16#40#) /= 0);
 
    --  ULAplus palette entry as a pixel (G3 R3 B2; blue's low bit is the
    --  OR of its two bits)
@@ -116,7 +121,7 @@ package body ULA is
                then Ink else Paper);
          begin
             Video.FB (Y, X + K) := P;
-            if Model = TC2048 then
+            if Model in TC2048 | TC2068 then
                Video.FB_Wide (Y, 2 * (X + K)) := P;
                Video.FB_Wide (Y, 2 * (X + K) + 1) := P;
             end if;
@@ -149,7 +154,7 @@ package body ULA is
       X : constant Natural := 2 * H;
       DY : constant Integer := Y - Video.Border;
       DX : constant Integer := X - Video.Border;
-      Timex : constant Boolean := Model = TC2048;
+      Timex : constant Boolean := Model in TC2048 | TC2068;
       Mode : constant Byte := (if Timex then SCLD and 7 else 0);
       Hires : constant Boolean := Timex and then (Mode and 4) /= 0;
       Hires_Attr : constant Byte :=     --  ink = bits 3 - 5, paper = 7 - ink
@@ -289,7 +294,7 @@ package body ULA is
 
    function Floating_Bus (T : Integer) return Byte is
    begin
-      if Model in Plus2A .. Plus3 | Pentagon | TC2048 then
+      if Model in Plus2A .. Plus3 | Pentagon | TC2048 | TC2068 then
          return 16#FF#;
       end if;
       declare
