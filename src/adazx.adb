@@ -44,6 +44,9 @@
 --    --beta             the Beta 128 disk interface (TR-DOS) on a 48K / 128K
 --    --trd FILE         a .trd / .scl disc in TR-DOS drive A (and --beta)
 --    --new-trd FILE     a new blank .trd in drive A
+--    --mouse            the Kempston mouse (--mouse-set X Y BUTTONS: fixed)
+--    --printer PNG      the ZX Printer; headless: the paper saved as PNG
+--    --multiface        the Multiface 128 (roms/mf128.rom; NMI = red button)
 --    --divmmc           DivMMC with esxDOS (roms/esxmmc.bin)
 --    --sd FILE          DivMMC with FILE (an SD card image) in its slot
 --    --sd-dir DIR       DivMMC with a card built from the folder DIR (and
@@ -92,6 +95,7 @@ with Asm;
 with Monitor_Commands;
 with Interface_1;
 with DivMMC;
+with Peripherals;
 
 procedure AdaZX is
    Model    : Machine.Model_Type := Machine.ZX48;
@@ -111,6 +115,7 @@ procedure AdaZX is
    Record_RZX : Unbounded_String;
    Disc_A : Unbounded_String;
    MDR : Unbounded_String;
+   Printout : Unbounded_String;      --  --printer: the paper as a PNG
    Profile : Boolean := False;
    type Timed_Text is record
       Frame : Natural := 0;
@@ -277,6 +282,18 @@ begin
                   Put_Line (Machine.Error_Message);
                end if;
             end;
+         elsif A = "--mouse" then
+            Peripherals.Mouse_On := True;
+         elsif A = "--mouse-set" then              --  X Y BUTTONS (headless)
+            Peripherals.Mouse_On := True;
+            Peripherals.Mouse_X := Byte'Value (Next);
+            Peripherals.Mouse_Y := Byte'Value (Next);
+            Peripherals.Mouse_Buttons := Byte'Value (Next);
+         elsif A = "--printer" then
+            Peripherals.Printer_On := True;
+            Printout := To_Unbounded_String (Next);
+         elsif A = "--multiface" then
+            Peripherals.MF_Enabled := True;
          elsif A = "--divmmc" then
             DivMMC.Enabled := True;
          elsif A = "--sd" then
@@ -461,6 +478,11 @@ begin
       end loop;
       if Machine.Break_Hit then
          Put_Line ("stopped: " & Machine.Stop_Text);
+      end if;
+      if Length (Printout) > 0 then
+         Peripherals.Save_Printout (To_String (Printout), Ok);
+         Put_Line ("printer:" & Natural'Image (Peripherals.Printed_Lines) &
+                   " lines" & (if Ok then "" else " (not written)"));
       end if;
       if Profile then
          Put_Line ("profile:" & Long_Long_Integer'Image (Machine.Profile_Total)

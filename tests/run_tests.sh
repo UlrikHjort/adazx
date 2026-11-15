@@ -214,4 +214,24 @@ if [ -f roms/trdos.rom ]; then
 else
   echo "skip TR-DOS (no roms/trdos.rom)"
 fi
+# Peripherals: Kempston mouse ports, ZX Printer (LPRINT is 8 lines, COPY
+# 176), Multiface 128 (when roms/mf128.rom exists: its menu on the NMI)
+bin/adazx --mouse-set 100 50 253 --headless 300 --png "$T/x.png" tests/mouse.asm \
+  --monitor 'm 5b00 5b00' > "$T/mouse.out"
+check "Kempston mouse (X, Y, buttons)" "$T/mouse.out" "^5B00  64 32 FD "
+bin/adazx --printer "$T/lp.png" --headless 300 --png "$T/x.png" \
+  --type-at 100 'LPRINT "HELLO PRINTER"\n' > "$T/lp.out"
+check "ZX Printer: LPRINT" "$T/lp.out" "^printer: 8 lines"
+python3 tests/png_runs.py "$T/lp.png" 1 > "$T/lpcol.out"
+check "ZX Printer: the H of HELLO" "$T/lpcol.out" "^1:6$"
+bin/adazx --printer "$T/cp.png" --headless 600 --png "$T/x.png" \
+  --type-at 100 'COPY\n' > "$T/cp.out"
+check "ZX Printer: COPY" "$T/cp.out" "^printer: 176 lines"
+if [ -f roms/mf128.rom ]; then
+  bin/adazx --128 --multiface --headless 400 --png "$T/x.png" --screen \
+    --nmi-at 250 > "$T/mf.out"
+  check "Multiface 128 menu on the red button" "$T/mf.out" "MULTIFACE 128"
+else
+  echo "skip Multiface 128 (no roms/mf128.rom)"
+fi
 exit $fail

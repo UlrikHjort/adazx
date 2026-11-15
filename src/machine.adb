@@ -47,6 +47,7 @@ with Tape;
 with DSK;
 with Interface_1;
 with DivMMC;
+with Peripherals;
 with Beta_Disk;
 with Fat_Image;
 with Ada.Environment_Variables;
@@ -428,6 +429,9 @@ package body Machine is
 
    function Bus_Fetch (Addr : Word) return Byte is
    begin
+      if Peripherals.MF_Enabled then
+         Peripherals.MF_Before_Fetch (Addr);    --  the red button's NMI
+      end if;
       --  TR-DOS: its ROM in at a fetch from &3Dxx (48K BASIC selected),
       --  out at a fetch from &4000 up
       if Beta_Disk.Enabled then
@@ -555,12 +559,18 @@ package body Machine is
       IO_Pre (Port);
       if Beta_Disk.Port_Selected (Port) then
          V := Beta_Disk.Port_In (Port, Total_Cycles + Long_Long_Integer (T));
+      elsif Peripherals.Mouse_Port (Port) then
+         V := Peripherals.Mouse_In (Port);
+      elsif Peripherals.Printer_Port (Port) then
+         V := Peripherals.Printer_In (Total_Cycles + Long_Long_Integer (T));
+      elsif Config.ULAplus and then Port = 16#FF3B# then
+         V := ULA.ULAplus_In;
+      elsif Peripherals.MF_Port (Port) then
+         V := Peripherals.MF_In (Port, Memory.Port_7FFD);
       elsif DivMMC.Port_Selected (Port) then
          V := DivMMC.Port_In (Port);
       elsif Model = Config.TC2048 and then Lo (Port) = 16#FF# then
          V := ULA.SCLD;
-      elsif Config.ULAplus and then Port = 16#FF3B# then
-         V := ULA.ULAplus_In;
       elsif Interface_1.Port_Selected (Port)
         and then Model in Config.ZX48 .. Config.Plus2
       then
@@ -624,6 +634,13 @@ package body Machine is
       if Config.ULAplus and then (Port = 16#BF3B# or else Port = 16#FF3B#)
       then
          ULA.ULAplus_Out (Port, Value, T);
+      end if;
+      if Peripherals.Printer_Port (Port) then
+         Peripherals.Printer_Out (Value, Total_Cycles + Long_Long_Integer (T));
+      elsif Peripherals.MF_Port (Port)
+        and then not (Config.ULAplus and then Port = 16#FF3B#)
+      then
+         Peripherals.MF_Out (Port);
       end if;
       if Beta_Disk.Port_Selected (Port) then
          Beta_Disk.Port_Out (Port, Value,
@@ -753,6 +770,7 @@ package body Machine is
       Interface_1.Reset;
       DivMMC.Power_On;
       Beta_Disk.Reset;
+      Peripherals.MF_Reset (Hard => True);
       FDC765.Motor := False;
       Restart_Frame_State;
       Last_FE := 0;
@@ -773,6 +791,11 @@ package body Machine is
 
    procedure NMI_Button is
    begin
+      if Peripherals.MF_Enabled and then not Config.Is_ZX81
+        and then not Peripherals.MF_Red_Button
+      then
+         return;               --  the Multiface's button is disarmed
+      end if;
       CPU.NMI_Pending := True;
    end NMI_Button;
 
@@ -814,6 +837,21 @@ package body Machine is
             if not Ok2 then
                Append (Err, "missing ROM trdos.rom (TR-DOS)" & ASCII.LF);
                Beta_Disk.Enabled := False;
+            end if;
+         end;
+      end if;
+      if Peripherals.MF_Enabled and then not Peripherals.MF_ROM_Loaded then
+         declare
+            P : constant String := Find_ROM ("mf128.rom");
+            Ok2 : Boolean := False;
+         begin
+            if P /= "" then
+               Peripherals.MF_Load_ROM (P, Ok2);
+            end if;
+            if not Ok2 then
+               Append (Err, "missing ROM mf128.rom (Multiface 128)" &
+                         ASCII.LF);
+               Peripherals.MF_Enabled := False;
             end if;
          end;
       end if;
@@ -1459,6 +1497,7 @@ package body Machine is
         or else Interface_1.Paged       --  the shadow ROM is not BASIC's
         or else DivMMC.Active
         or else Beta_Disk.Active
+        or else Peripherals.MF_Active
       then
          return;
       end if;
@@ -2120,6 +2159,7 @@ package body Machine is
         (if CPU.Halted then " HALT" else "") &
         (if Interface_1.Paged then " IF1" else "") &
         (if Beta_Disk.Active then " TRDOS" else "") &
+        (if Peripherals.MF_Active then " MF" else "") &
         "  " & Flags_Text & "  T=" & Integer'Image (T);
    end Register_Text;
 
@@ -2264,6 +2304,15 @@ package body Machine is
    end Set_Beta;
 
    function Beta_Fitted return Boolean is (Beta_Disk.Enabled);
+
+   procedure Set_Multiface (On : Boolean) is
+      Ok : Boolean;
+   begin
+      Peripherals.MF_Enabled := On;
+      if Powered then
+         Power_On (Model, To_String (ROM_Dir_Used), Ok);
+      end if;
+   end Set_Multiface;
 
    procedure Insert_TRD (Drive : Natural; Path : String; Ok : out Boolean) is
    begin

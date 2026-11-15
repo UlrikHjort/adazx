@@ -24,7 +24,7 @@ ZX81, the "Tape Loader" menu entry on the 128K models. `.bas` / `.b81`
 files are tokenised and RUN; `.asm` files are assembled and started with
 `RANDOMIZE USR` (Spectrum) or put into a REM line at 16514 (ZX81).
 
-Options: `--trd FILE` / `--new-trd FILE` / `--beta` (TR-DOS), `--sd FILE` / `--sd-dir DIR` / `--new-sd FILE` / `--divmmc` (DivMMC with esxDOS), `--nmi-at FRAME`, `--print-log` (echo what the ROM prints to stdout, never stop at scroll?), `--roms DIR`, `--disc FILE` (+3 drive A), `--if1`, `--mdr FILE` (Interface 1, cartridge in Microdrive 1), `--1k` (ZX81 without the 16K pack), `--zonx` / `--quicksilva` (ZX81 sound board), `--ram2000`
+Options: `--mouse`, `--printer FILE.png`, `--multiface`, `--trd FILE` / `--new-trd FILE` / `--beta` (TR-DOS), `--sd FILE` / `--sd-dir DIR` / `--new-sd FILE` / `--divmmc` (DivMMC with esxDOS), `--nmi-at FRAME`, `--print-log` (echo what the ROM prints to stdout, never stop at scroll?), `--roms DIR`, `--disc FILE` (+3 drive A), `--if1`, `--mdr FILE` (Interface 1, cartridge in Microdrive 1), `--1k` (ZX81 without the 16K pack), `--zonx` / `--quicksilva` (ZX81 sound board), `--ram2000`
 (ZX81 8K RAM at &2000), `--issue2`, `--real-tape` (no flash loading),
 `--attach FILE`, and for testing `--headless N` (run N frames, save
 `shot.png`), `--png FILE`, `--type TEXT` (`\n` = ENTER), `--type-at FRAME
@@ -49,6 +49,7 @@ the current directory, `/usr/share/spectrum-roms` and `/usr/share/fuse`.
 | Pentagon 128 | `128-0.rom`, `128-1.rom` |
 | TC2048 | `tc2048.rom` (in Fuse's ROMs; covered by Amstrad's permission) |
 | Beta 128 / TR-DOS | `trdos.rom` (16 KB, TR-DOS 5.0x) |
+| Multiface 128 | `mf128.rom` (8 KB) |
 | ZX81 | `zx81.rom` (8 KB, the "improved" version 2 ROM) |
 | ZX80 | `zx80.rom` (4 KB) |
 | Interface 1 | `if1-2.rom` (8 KB, edition 2; in the spectrum-roms package) |
@@ -56,6 +57,9 @@ the current directory, `/usr/share/spectrum-roms` and `/usr/share/fuse`.
 | Timex TC2048 | The SCLD's video modes on port &FF: second screen at &6000, 8x1 colour attributes, the 512 x 192 modes (drawn at full resolution in the window and PNG) and their colours, and bit 6 switching off the frame interrupt; port &FF reads back; .z80 / .szx keep the mode. |
 | ULAplus | `--ulaplus` or the Machine menu: the 64-colour palette (ports &BF3B / &FF3B, GGGRRRBB entries, four CLUTs chosen by FLASH / BRIGHT, the border from CLUT 0's paper entries). |
 | Beta 128 / TR-DOS | Built into the Pentagon, `--beta` (or the Machine menu) on a 48K / 128K / +2: a WD1793 (all commands; Write Track ends at the index pulse, Read Address returns the IDs a FORMAT wrote), four drives, the TR-DOS ROM paged by a fetch from &3Dxx while the 48K BASIC ROM is selected. `.trd` images are written back; `.scl` archives become a disc in memory. Opening a .trd / .scl starts it (`RUN` of its "boot", else `CAT`). From BASIC: `RANDOMIZE USR 15619: REM : CAT` (after a `:` the editor is in keyword mode even in a REM, and typing follows that), or `RANDOMIZE USR 15616` for the TR-DOS prompt. `--trd FILE`, `--new-trd FILE`; File menu items for drives A and B. |
+| Kempston mouse | `--mouse` or the Machine menu: the pointer over the picture is the mouse (X to the right, Y up, in screen pixels), left / right / middle buttons; ports as decoded by Fuse. |
+| ZX Printer | `--printer FILE.png` (headless: the paper saved at the end) or the Machine menu (File menu: save / clear the paper). It follows the ROM's handshake, so LPRINT, LLIST and COPY print at once; 256 pixels wide, as a PNG. Port &FB decoded fully. |
+| Multiface 128 | `--multiface` or the Machine menu: the red button is the NMI (Alt+N); 8K ROM and 8K RAM paged at the fetch from &0066, ports &3F / &BF (and A7) page it out / in, the menu's "return" goes back. |
 | DivMMC | `esxmmc.bin` (8 KB esxDOS firmware) and the folder `esxdos/` with esxDOS's `SYS`, `BIN` and `TMP` folders (from the esxDOS zip) |
 
 **Spectrum:** Amstrad allow the Spectrum ROMs to be distributed with
@@ -69,9 +73,10 @@ AdaZX finds them.
 licence to redistribute it. Many emulators ship it (sz81, EightyOne).
 Use a copy you are entitled to use, and do not pass it on with AdaZX.
 
-**TR-DOS** (Technology Research) has no published licence either; use a
+**TR-DOS** (Technology Research) and the **Multiface 128** ROM (Romantic
+Robot) have no published licence either; use a
 copy you are entitled to use (several emulators ship one) as
-`roms/trdos.rom`.
+`roms/trdos.rom` / `roms/mf128.rom`.
 
 **esxDOS** (Papaya Dezign) is free to download from www.esxdos.org but
 states no licence, so it is not included either: put `ESXMMC.BIN` from the

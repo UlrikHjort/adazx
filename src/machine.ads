@@ -134,6 +134,7 @@ package Machine is
    --  Beta 128 disk interface (TR-DOS; built into the Pentagon)
    Beta_Wanted : Boolean := False;   --  fitted on a 48K / 128K / +2 too
    procedure Set_Beta (On : Boolean);
+   procedure Set_Multiface (On : Boolean);   --  Multiface 128, from a reset
    function Beta_Fitted return Boolean;
    procedure Insert_TRD (Drive : Natural; Path : String; Ok : out Boolean);
    procedure Eject_TRD (Drive : Natural);

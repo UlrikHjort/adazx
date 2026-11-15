@@ -27,6 +27,7 @@ with Interfaces; use Interfaces;
 with Config; use Config;
 with Interface_1;
 with DivMMC;
+with Peripherals;
 with Beta_Disk;
 
 package body Memory is
@@ -154,7 +155,9 @@ package body Memory is
          return Store (ZX81_Offset (Addr));
       end if;
       if Addr < 16#4000# then
-         if Beta_Disk.Active then
+         if Peripherals.MF_Active then
+            return Peripherals.MF_Read (Addr);
+         elsif Beta_Disk.Active then
             return Beta_Disk.ROM_Byte (Addr);
          elsif DivMMC.Active then
             return DivMMC.Read (Addr);
@@ -175,6 +178,8 @@ package body Memory is
                Store (O) := V;
             end if;
          end;
+      elsif Addr < 16#4000# and then Peripherals.MF_Active then
+         Peripherals.MF_Write (Addr, V);
       elsif Addr < 16#4000# and then DivMMC.Active then
          DivMMC.Write (Addr, V);
       elsif Slot_Writable (S (Addr)) then

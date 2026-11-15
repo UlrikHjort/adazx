@@ -80,6 +80,8 @@ with Host_Joystick;
 with Tape;
 with Interface_1;
 with DivMMC;
+with Peripherals;
+with Types;
 with ULA;
 
 package body GUI is
@@ -104,7 +106,8 @@ package body GUI is
    Item_Auto_Play : Gtk_Check_Menu_Item;
    Item_Tape_Sound : Gtk_Check_Menu_Item;
    Item_16K, Item_2000, Item_Issue2, Item_IF1 : Gtk_Check_Menu_Item;
-   Item_ZONX, Item_QS, Item_DivMMC, Item_ULAplus, Item_Beta :
+   Item_ZONX, Item_QS, Item_DivMMC, Item_ULAplus, Item_Beta, Item_Mouse,
+   Item_Printer, Item_MF :
      Gtk_Check_Menu_Item;
    Model_Items : array (Model_Type) of Gtk_Radio_Menu_Item;
    Updating_Menu : Boolean := False;
@@ -207,6 +210,9 @@ package body GUI is
       Item_IF1.Set_Active (Machine.Interface_1_Fitted);
       Item_DivMMC.Set_Active (Machine.DivMMC_Fitted);
       Item_Beta.Set_Active (Machine.Beta_Fitted);
+      Item_Mouse.Set_Active (Peripherals.Mouse_On);
+      Item_Printer.Set_Active (Peripherals.Printer_On);
+      Item_MF.Set_Active (Peripherals.MF_Enabled);
       Item_ULAplus.Set_Active (Config.ULAplus);
       Model_Items (Machine.Model).Set_Active (True);
       Updating_Menu := False;
@@ -698,6 +704,46 @@ package body GUI is
       end if;
    end On_Beta;
 
+   procedure On_Peripheral (Item : access Gtk_Check_Menu_Item_Record'Class)
+   is
+   begin
+      if Updating_Menu then
+         return;
+      end if;
+      if Gtk_Check_Menu_Item (Item) = Item_Mouse then
+         Peripherals.Mouse_On := Item.Get_Active;
+      elsif Gtk_Check_Menu_Item (Item) = Item_Printer then
+         Peripherals.Printer_On := Item.Get_Active;
+      elsif Gtk_Check_Menu_Item (Item) = Item_MF then
+         Machine.Set_Multiface (Item.Get_Active);
+         if Item.Get_Active and then not Peripherals.MF_Enabled then
+            Message ("Cannot fit the Multiface 128:" & ASCII.LF &
+                     Machine.Error_Message);
+         end if;
+         Sync_Menu;
+      end if;
+   end On_Peripheral;
+
+   procedure On_Save_Paper (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+      Path : constant String :=
+        Choose_Save_File ("Save the ZX Printer paper (PNG)", "printout.png");
+      Ok : Boolean;
+   begin
+      if Path /= "" then
+         Peripherals.Save_Printout (Path, Ok);
+         if not Ok then
+            Message ("Could not write " & Path);
+         end if;
+      end if;
+   end On_Save_Paper;
+
+   procedure On_Clear_Paper (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+   begin
+      Peripherals.Clear_Printout;
+   end On_Clear_Paper;
+
    procedure On_ULAplus (Item : access Gtk_Check_Menu_Item_Record'Class) is
    begin
       if not Updating_Menu then
@@ -1009,6 +1055,9 @@ package body GUI is
       Settings.Set ("divmmc", DivMMC.Enabled);
       Settings.Set ("ulaplus", Config.ULAplus);
       Settings.Set ("beta128", Machine.Beta_Wanted);
+      Settings.Set ("kempston_mouse", Peripherals.Mouse_On);
+      Settings.Set ("zx_printer", Peripherals.Printer_On);
+      Settings.Set ("multiface128", Peripherals.MF_Enabled);
       Settings.Set ("sdcard", Machine.SD_Name);
       Settings.Set ("lastdir", To_String (Last_Dir));
       declare
@@ -1147,6 +1196,52 @@ package body GUI is
    --  Event handlers
    ---------------------------------------------------------------------
 
+   Last_OX, Last_OY : Float := 0.0;      --  where the picture was drawn
+   Last_Scale : Float := 1.0;
+
+   --  The Kempston mouse follows the pointer over the picture (X to the
+   --  right, Y up, in screen pixels); buttons: left, right, middle
+   procedure Mouse_At (X, Y : Gdouble) is
+      PX : constant Integer := Integer
+        (Float'Floor ((Float (X) - Last_OX) / Last_Scale / 2.0))
+        - Video.Border;
+      PY : constant Integer := Integer
+        (Float'Floor ((Float (Y) - Last_OY) / Last_Scale / 2.0))
+        - Video.Border;
+   begin
+      Peripherals.Mouse_X := Types.Byte (PX mod 256);
+      Peripherals.Mouse_Y := Types.Byte ((191 - PY) mod 256);
+   end Mouse_At;
+
+   function On_Motion (Self : access Gtk_Widget_Record'Class;
+                       Event : Gdk_Event_Motion) return Boolean is
+      pragma Unreferenced (Self);
+   begin
+      if Peripherals.Mouse_On then
+         Mouse_At (Event.X, Event.Y);
+      end if;
+      return False;
+   end On_Motion;
+
+   function On_Mouse_Button (Self : access Gtk_Widget_Record'Class;
+                             Event : Gdk_Event_Button) return Boolean is
+      pragma Unreferenced (Self);
+      use type Types.Byte;
+      Bit : constant Types.Byte :=
+        (case Event.Button is when 1 => 2, when 3 => 1, when 2 => 4,
+            when others => 0);
+   begin
+      if not Peripherals.Mouse_On or else Bit = 0 then
+         return False;
+      end if;
+      if Event.The_Type = Button_Press then
+         Peripherals.Mouse_Buttons := Peripherals.Mouse_Buttons and not Bit;
+      else
+         Peripherals.Mouse_Buttons := Peripherals.Mouse_Buttons or Bit;
+      end if;
+      return True;
+   end On_Mouse_Button;
+
    function On_Draw (Self : access Gtk_Widget_Record'Class;
                      Cr   : Cairo_Context) return Boolean
    is
@@ -1161,6 +1256,9 @@ package body GUI is
       OX : constant Float := Float'Floor ((W - SW * Scale) / 2.0);
       OY : constant Float := Float'Floor ((H - SH * Scale) / 2.0);
    begin
+      Last_OX := OX;
+      Last_OY := OY;
+      Last_Scale := Scale;
       Set_Source_Rgb (Cr, 0.0, 0.0, 0.0);
       Paint (Cr);
       Translate (Cr, Gdouble (OX), Gdouble (OY));
@@ -1506,6 +1604,15 @@ package body GUI is
       if not Machine.Beta_Wanted then
          Machine.Beta_Wanted := Settings.Get ("beta128", False);
       end if;
+      if not Peripherals.Mouse_On then
+         Peripherals.Mouse_On := Settings.Get ("kempston_mouse", False);
+      end if;
+      if not Peripherals.Printer_On then
+         Peripherals.Printer_On := Settings.Get ("zx_printer", False);
+      end if;
+      if not Peripherals.MF_Enabled then
+         Peripherals.MF_Enabled := Settings.Get ("multiface128", False);
+      end if;
       if Machine.SD_Name = "" then
          declare
             P : constant String := Settings.Get ("sdcard", "");
@@ -1572,6 +1679,9 @@ package body GUI is
       Add_Item (M_File, "Insert TR-DOS disc in drive B...", On_TRD_B'Access);
       Add_Item (M_File, "Eject the TR-DOS discs", On_TRD_Eject'Access);
       Add_Item (M_File, "New blank TR-DOS disc...", On_New_TRD'Access);
+      Add_Item (M_File, "Save the ZX _Printer paper (PNG)...",
+                On_Save_Paper'Access);
+      Add_Item (M_File, "Clear the ZX Printer paper", On_Clear_Paper'Access);
       Add_Item (M_File, "Insert _SD card image (DivMMC)...",
                 On_SD_Insert'Access);
       Add_Item (M_File, "SD card from a _folder (DivMMC)...",
@@ -1620,6 +1730,12 @@ package body GUI is
                  Item_DivMMC, On_DivMMC'Access);
       Add_Check (M_Machine, "_Beta 128 disk interface (TR-DOS; 48K / 128K)",
                  Item_Beta, On_Beta'Access);
+      Add_Check (M_Machine, "_Kempston mouse (the pointer over the picture)",
+                 Item_Mouse, On_Peripheral'Access);
+      Add_Check (M_Machine, "ZX _Printer (LPRINT, COPY)", Item_Printer,
+                 On_Peripheral'Access);
+      Add_Check (M_Machine, "_Multiface 128 (Alt+N = red button)", Item_MF,
+                 On_Peripheral'Access);
       Add_Check (M_Machine, "ULA_plus 64-colour palette", Item_ULAplus,
                  On_ULAplus'Access);
       Add_Separator (M_Machine);
@@ -1685,6 +1801,11 @@ package body GUI is
       Gtk_New (Area);
       Area.Set_Size_Request (352, 288);
       Area.On_Draw (On_Draw'Access);
+      Area.Add_Events (Pointer_Motion_Mask or Button_Press_Mask
+                       or Button_Release_Mask);
+      Area.On_Motion_Notify_Event (On_Motion'Access);
+      Area.On_Button_Press_Event (On_Mouse_Button'Access);
+      Area.On_Button_Release_Event (On_Mouse_Button'Access);
       Gtk.Dnd.Dest_Set (Area, Gtk.Dnd.Dest_Default_All,
                         Actions => Gdk.Drag_Contexts.Action_Copy);
       Gtk.Dnd.Dest_Add_Uri_Targets (Area);
