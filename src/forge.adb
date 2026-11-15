@@ -1,3 +1,5 @@
+with Ada.Strings.Hash;
+with Ada.Containers.Indefinite_Hashed_Maps;
 -- ***************************************************************************
 --                              AdaZX - Forge
 --
@@ -747,6 +749,14 @@ package body Forge is
       end loop;
    end Line_Address;
 
+   --  Breakpoint conditions by "path:line" (line counted from 0)
+   package Cond_Maps is new Ada.Containers.Indefinite_Hashed_Maps
+     (String, String, Ada.Strings.Hash, "=");
+   Conditions : Cond_Maps.Map;
+
+   function Cond_Key (Path : String; Line0 : Natural) return String is
+     (Path & ":" & Ada.Strings.Fixed.Trim (Line0'Image, Ada.Strings.Left));
+
    procedure Apply_Breakpoints is
    begin
       --  BASIC: marks in the BASIC tab become BASIC line breakpoints
@@ -783,7 +793,10 @@ package body Forge is
                begin
                   Line_Address (Path, Line + 1, Found, A);
                   if Found then
-                     Machine.Set_Breakpoint (A);
+                     Machine.Set_Breakpoint
+                       (A, (if Conditions.Contains (Cond_Key (Path, Line))
+                            then Conditions.Element (Cond_Key (Path, Line))
+                            else ""));
                   end if;
                end Set;
             begin
@@ -1150,13 +1163,146 @@ package body Forge is
       end if;
    end Close_Forge;
 
+   --  Ask for a breakpoint condition ("" = none); Cancel gives Old
+   function Ask_Condition (Old : String) return String is
+      Dlg : Gtk_Dialog;
+      E : Gtk_Entry;
+      L : Gtk_Label;
+      W : Gtk_Widget;
+      pragma Unreferenced (W);
+      Result : Unbounded_String := To_Unbounded_String (Old);
+   begin
+      Gtk_New (Dlg, "Breakpoint condition", Win, Modal);
+      W := Dlg.Add_Button ("_Cancel", Gtk_Response_Cancel);
+      W := Dlg.Add_Button ("_OK", Gtk_Response_OK);
+      Dlg.Set_Default_Response (Gtk_Response_OK);
+      Gtk_New (L, "Stop only when this holds (empty: always), e.g." &
+                 ASCII.LF & "  a = 3 and [hl] <> 0     b > 10 || zf" &
+                 "     {sp} = label" & ASCII.LF &
+                 "Registers, flags sf zf hf pf nf cf, [addr] byte, " &
+                 "{addr} word, labels.");
+      L.Set_Halign (Align_Start);
+      Gtk_New (E);
+      E.Set_Text (Old);
+      E.Set_Activates_Default (True);
+      E.Set_Width_Chars (40);
+      Dlg.Get_Content_Area.Pack_Start (L, False, False, 6);
+      Dlg.Get_Content_Area.Pack_Start (E, False, False, 6);
+      Dlg.Show_All;
+      loop
+         exit when Dlg.Run /= Gtk_Response_OK;
+         declare
+            Text : constant String :=
+              Ada.Strings.Fixed.Trim (E.Get_Text, Ada.Strings.Both);
+            Err : constant String :=
+              (if Text = "" then "" else Machine.Condition_Error (Text));
+         begin
+            if Err = "" then
+               Result := To_Unbounded_String (Text);
+               exit;
+            end if;
+            L.Set_Text ("Not a valid condition: " & Err & ASCII.LF &
+                        "e.g.  a = 3 and [hl] <> 0");
+         end;
+      end loop;
+      Dlg.Destroy;
+      return To_String (Result);
+   end Ask_Condition;
+
+   --  Label and source line of an address, for the profile
+   function Source_Name (A : Word) return String is
+      File, Line : Natural;
+   begin
+      if not Built then
+         return "";
+      end if;
+      Asm.Line_Of (A, File, Line);
+      return (if Asm.Label_At (A) /= "" then Asm.Label_At (A) & "  " else "")
+        & (if File > 0
+           then Ada.Directories.Simple_Name (Asm.File_Name (File)) & ":" &
+                Ada.Strings.Fixed.Trim (Line'Image, Ada.Strings.Left)
+           else "");
+   end Source_Name;
+
+   procedure Show_Profile is
+      type Line_Cost is record
+         File, Line : Natural := 0;
+         T : Long_Long_Integer := 0;
+      end record;
+      Lines : array (1 .. 4096) of Line_Cost;
+      Used : Natural := 0;
+      Total : constant Long_Long_Integer := Machine.Profile_Total;
+   begin
+      Print ("profile:" & Long_Long_Integer'Image (Total) & " T-states" &
+             (if Machine.Profiling then " (still running)" else ""));
+      if Total = 0 then
+         return;
+      end if;
+      Print (Machine.Profile_Report (16, Source_Name'Access));
+      if not Built then
+         return;
+      end if;
+      --  By source line
+      for A in Word loop
+         if Machine.Profile_Time (A) > 0 then
+            declare
+               F, L : Natural;
+               Found : Boolean := False;
+            begin
+               Asm.Line_Of (A, F, L);
+               if F > 0 then
+                  for I in 1 .. Used loop
+                     if Lines (I).File = F and then Lines (I).Line = L then
+                        Lines (I).T := Lines (I).T + Machine.Profile_Time (A);
+                        Found := True;
+                        exit;
+                     end if;
+                  end loop;
+                  if not Found and then Used < Lines'Last then
+                     Used := Used + 1;
+                     Lines (Used) := (F, L, Machine.Profile_Time (A));
+                  end if;
+               end if;
+            end;
+         end if;
+      end loop;
+      for I in 2 .. Used loop             --  by time, largest first
+         declare
+            X : constant Line_Cost := Lines (I);
+            J : Natural := I - 1;
+         begin
+            while J >= 1 and then Lines (J).T < X.T loop
+               Lines (J + 1) := Lines (J);
+               J := J - 1;
+            end loop;
+            Lines (J + 1) := X;
+         end;
+      end loop;
+      Print ("by source line (time in your code):");
+      for I in 1 .. Natural'Min (Used, 12) loop
+         declare
+            Pct : constant Long_Long_Integer := Lines (I).T * 1000 / Total;
+         begin
+            Print ("  " & Ada.Strings.Fixed.Trim
+                     (Long_Long_Integer'Image (Pct / 10), Ada.Strings.Left) &
+                   "." & Ada.Strings.Fixed.Trim
+                     (Long_Long_Integer'Image (Pct mod 10), Ada.Strings.Left)
+                   & "%  " & Ada.Directories.Simple_Name
+                     (Asm.File_Name (Lines (I).File)) & ":" &
+                   Ada.Strings.Fixed.Trim (Lines (I).Line'Image,
+                                           Ada.Strings.Left));
+         end;
+      end loop;
+   end Show_Profile;
+
    type Action is
      (A_New, A_New_Basic, A_Import_PRG, A_Fetch_Basic, A_Open, A_Save,
       A_Save_As, A_Close_Tab, A_Set_Main,
       A_Undo, A_Redo, A_Close,
       A_Build, A_Run, A_Rebuild_Run, A_Tape,
       A_Pause, A_Step_Into, A_Step_Over,
-      A_Step_Out, A_Run_To_Cursor, A_Toggle_BP, A_Clear_BPs,
+      A_Step_Out, A_Run_To_Cursor, A_Toggle_BP, A_BP_Condition, A_Clear_BPs,
+      A_Profile_Start, A_Profile_Show,
       A_Reset,
       A_Emulator, A_UDG, A_Screen, A_ZX81_Screen,
       A_Help);
@@ -1317,6 +1463,38 @@ package body Forge is
             if T > 0 then
                Toggle_Breakpoint (T, Cursor_Line (T) - 1);
             end if;
+         when A_BP_Condition =>
+            if T > 0 and then Tabs (T).Path /= Null_Unbounded_String then
+               declare
+                  Path : constant String := To_String (Tabs (T).Path);
+                  Line0 : constant Natural := Cursor_Line (T) - 1;
+                  K : constant String := Cond_Key (Path, Line0);
+                  Old : constant String :=
+                    (if Conditions.Contains (K) then Conditions.Element (K)
+                     else "");
+                  New_C : constant String := Ask_Condition (Old);
+               begin
+                  if New_C = "" then
+                     Conditions.Exclude (K);
+                  else
+                     Conditions.Include (K, New_C);
+                  end if;
+                  if not Source_View.Has_Mark
+                    (Tabs (T).Buffer, Source_View.Breakpoint, Line0)
+                  then
+                     Source_View.Add_Mark (Tabs (T).Buffer,
+                                           Source_View.Breakpoint, Line0);
+                  end if;
+                  Apply_Breakpoints;
+                  Print ("breakpoints:" & Machine.Breakpoint_List);
+               end;
+            end if;
+         when A_Profile_Start =>
+            Machine.Profile_Start;
+            Print ("profiler started (F5 runs; Debug > Show profile)");
+         when A_Profile_Show =>
+            Machine.Profile_Stop;
+            Show_Profile;
          when A_Clear_BPs =>
             for I in Tabs'Range loop
                if Tabs (I).Used then
@@ -1326,6 +1504,7 @@ package body Forge is
             end loop;
             Machine.Clear_Breakpoints;
             Machine.Clear_Watches;
+            Conditions.Clear;
             Update_Watches;
          when A_Reset =>
             if Stopped then
@@ -1640,8 +1819,12 @@ package body Forge is
       Item (M, "Run to _cursor", A_Run_To_Cursor, GDK_F10, Control_Mask);
       Separator (M);
       Item (M, "Toggle _breakpoint", A_Toggle_BP, GDK_F9);
+      Item (M, "Breakpoint _condition...", A_BP_Condition, GDK_F9,
+            Shift_Mask);
       Item (M, "Clear all breakpoints and watches", A_Clear_BPs);
       Separator (M);
+      Item (M, "Start _profiler (clears the counts)", A_Profile_Start);
+      Item (M, "Stop profiler and show _profile", A_Profile_Show);
       Item (M, "_Reset machine", A_Reset);
       Item (M, "Show _emulator", A_Emulator, GDK_F12);
       M := Menu ("_Tools");

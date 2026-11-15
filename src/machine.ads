@@ -190,7 +190,26 @@ package Machine is
    procedure Clear_Watches;
    function Watch_List return String;
 
-   procedure Set_Breakpoint (Addr : Word);
+   procedure Set_Breakpoint (Addr : Word; Condition : String := "");
+   --  With a condition (see Cond_Expr: "a = 3 and [hl] <> 0", labels of
+   --  the last assembly) it stops only when that holds; setting an
+   --  existing breakpoint again replaces its condition.
+   function Breakpoint_Condition (Addr : Word) return String;
+   function Condition_Error (Condition : String) return String;
+   --  "" when the condition is valid, else what is wrong
+
+   --  Profiler: executions and T-states per instruction address
+   procedure Profile_Start;               --  clears the counts
+   procedure Profile_Stop;
+   function Profiling return Boolean;
+   function Profile_Total return Long_Long_Integer;      --  T-states
+   function Profile_Time (Addr : Word) return Long_Long_Integer;
+   function Profile_Count (Addr : Word) return Natural;
+   type Name_Func is access function (Addr : Word) return String;
+   function Profile_Report (Top : Positive; Name : Name_Func := null)
+                            return String;
+   --  The Top addresses by time: share, address, T-states, executions,
+   --  Name (label / source), instruction
    procedure Clear_Breakpoint (Addr : Word);
    procedure Clear_Breakpoints;
    function Breakpoint_List return String;

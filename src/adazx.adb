@@ -60,6 +60,8 @@
 --    --monitor "CMDS"   headless: monitor commands after the run (; = next)
 --    --break ADDR       headless: stop at a breakpoint (hex)
 --    --watch ADDR       headless: stop when ADDR is read or written (hex)
+--    --break-if ADDR C  headless: stop at ADDR when the condition C holds
+--    --profile          headless: profile the run, print the top 20
 --    --basic SRC        tokenize a BASIC text file into a .tap / .p, exit
 --    --list FILE        list the BASIC program of a .tap or .p, exit
 --    --asm SRC          assemble a Z80 source file and exit
@@ -104,6 +106,7 @@ procedure AdaZX is
    Record_RZX : Unbounded_String;
    Disc_A : Unbounded_String;
    MDR : Unbounded_String;
+   Profile : Boolean := False;
    type Timed_Text is record
       Frame : Natural := 0;
       Text  : Unbounded_String;
@@ -291,6 +294,21 @@ begin
             end;
          elsif A = "--break" then
             Machine.Set_Breakpoint (Word'Value ("16#" & Next & "#"));
+         elsif A = "--break-if" then
+            declare
+               Addr : constant Word := Word'Value ("16#" & Next & "#");
+               Cond : constant String := Next;
+               E : constant String := Machine.Condition_Error (Cond);
+            begin
+               if E /= "" then
+                  Put_Line ("condition: " & E);
+                  Set_Exit_Status (1);
+                  return;
+               end if;
+               Machine.Set_Breakpoint (Addr, Cond);
+            end;
+         elsif A = "--profile" then
+            Profile := True;
          elsif A = "--forge" then
             GUI.Open_Forge := True;
             if I < Argument_Count and then Argument (I + 1) (1) /= '-' then
@@ -350,6 +368,9 @@ begin
          Put_Line ("Cannot start: " & Machine.Error_Message);
          Set_Exit_Status (1);
          return;
+      end if;
+      if Profile then
+         Machine.Profile_Start;
       end if;
       if Length (Wav) > 0 then
          Sound.Sink := Wav_Sink.Push'Access;
@@ -412,6 +433,11 @@ begin
       end loop;
       if Machine.Break_Hit then
          Put_Line ("stopped: " & Machine.Stop_Text);
+      end if;
+      if Profile then
+         Put_Line ("profile:" & Long_Long_Integer'Image (Machine.Profile_Total)
+                   & " T-states");
+         Put (Machine.Profile_Report (20));
       end if;
       if Length (Record_RZX) > 0 then
          Machine.Stop_RZX_Recording (To_String (Record_RZX), Ok);

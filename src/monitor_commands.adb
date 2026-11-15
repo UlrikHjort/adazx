@@ -1,3 +1,4 @@
+with Ada.Strings.Fixed;
 -- ***************************************************************************
 --                         AdaZX - Monitor_Commands
 --
@@ -129,6 +130,70 @@ package body Monitor_Commands is
       Bad : Boolean;
    begin
       Print ("." & Line);
+      --  "b ADDR CONDITION" and "prof [on | off | N]" are not all hex
+      declare
+         W : constant String := Ada.Strings.Fixed.Trim (Line, Ada.Strings.Both);
+         Sp1 : constant Natural := Ada.Strings.Fixed.Index (W, " ");
+         First : constant String :=
+           To_Lower (if Sp1 = 0 then W else W (W'First .. Sp1 - 1));
+         Rest : constant String :=
+           (if Sp1 = 0 then ""
+            else Ada.Strings.Fixed.Trim (W (Sp1 + 1 .. W'Last),
+                                         Ada.Strings.Both));
+      begin
+         if First = "b" and then Ada.Strings.Fixed.Index (Rest, " ") > 0 then
+            declare
+               Sp2 : constant Natural := Ada.Strings.Fixed.Index (Rest, " ");
+               A_Text : constant String := Rest (Rest'First .. Sp2 - 1);
+               Cond : constant String :=
+                 Ada.Strings.Fixed.Trim (Rest (Sp2 + 1 .. Rest'Last),
+                                         Ada.Strings.Both);
+               Err : constant String := Machine.Condition_Error (Cond);
+               A : Natural;
+            begin
+               A := Natural'Value
+                 ("16#" & (if A_Text (A_Text'First) = '$'
+                           then A_Text (A_Text'First + 1 .. A_Text'Last)
+                           else A_Text) & "#");
+               if Err /= "" then
+                  Print ("?condition: " & Err);
+               else
+                  Machine.Set_Breakpoint (Word (A mod 65536), Cond);
+                  Print ("breakpoints:" & Machine.Breakpoint_List);
+               end if;
+               return;
+            exception
+               when Constraint_Error =>
+                  Print ("?syntax: b ADDR [CONDITION]");
+                  return;
+            end;
+         elsif First = "prof" then
+            if To_Lower (Rest) = "on" then
+               Machine.Profile_Start;
+               Print ("profiling (counts cleared)");
+            elsif To_Lower (Rest) = "off" then
+               Machine.Profile_Stop;
+               Print ("profiler stopped");
+            else
+               declare
+                  Top : Positive := 16;
+               begin
+                  if Rest /= "" then
+                     Top := Positive'Value ("16#" & Rest & "#");
+                  end if;
+                  Print ((if Machine.Profiling then "profiling, "
+                          else "profiler stopped, ") &
+                         Long_Long_Integer'Image (Machine.Profile_Total) &
+                         " T-states");
+                  Print (Machine.Profile_Report (Top));
+               exception
+                  when Constraint_Error =>
+                     Print ("?syntax: prof [on | off | N]");
+               end;
+            end if;
+            return;
+         end if;
+      end;
       Parse (Line, Cmd, Args, N, Bad);
       if Bad then
          Print ("?syntax: numbers are hexadecimal");
@@ -248,6 +313,8 @@ package body Monitor_Commands is
          elsif C = "h" or else C = "?" or else C = "help" then
             Print ("r regs | z [n] step | d [addr [n]] disasm | m [a [b]] memory" &
                    " | > addr bytes | g [addr] go | x exit");
+            Print ("b addr [condition] break (a=3 and [hl]<>0) |" &
+                   " prof on | off | [n] profiler");
             Print ("b addr break | bd [addr] delete | bl list |" &
                    " w [a [b]] watch (none = clear) | io chip state");
 

@@ -1,3 +1,6 @@
+with Ada.Strings.Fixed;
+with Ada.Exceptions;
+with Cond_Expr;
 with Ada.Text_IO;
 -- ***************************************************************************
 --                              AdaZX - Machine
@@ -73,6 +76,13 @@ package body Machine is
    BP_Map : array (Word) of Boolean := (others => False);
    Max_BP : constant := 64;
    Breakpoints : array (1 .. Max_BP) of Word;
+   BP_Cond : array (1 .. Max_BP) of Unbounded_String;
+   Cond_Message : Unbounded_String;     --  an error in a condition
+
+   Prof_On : Boolean := False;
+   Prof_T : array (Word) of Long_Long_Integer := (others => 0);
+   Prof_N : array (Word) of Natural := (others => 0);
+   Prof_Total : Long_Long_Integer := 0;
    BP_Count : Natural := 0;
 
    type Watch is record
@@ -103,6 +113,161 @@ package body Machine is
      (BP_Count > 0 or else Watch_Count > 0 or else Temp_Addr >= 0
       or else Out_Active or else Pause_Req or else Basic_BP_Count > 0
       or else Basic_Stepping);
+
+   ---------------------------------------------------------------------
+   --  Breakpoint conditions
+   ---------------------------------------------------------------------
+
+   function CPU_Name (Name : String; Value : out Integer) return Boolean is
+      function W (Hi_B, Lo_B : Byte) return Integer is
+        (Integer (Hi_B) * 256 + Integer (Lo_B));
+      function Flag (Bit : Natural) return Integer is
+        (Integer (Shift_Right (CPU.F, Bit) and 1));
+   begin
+      Value := 0;
+      if Name = "a" then Value := Integer (CPU.A);
+      elsif Name = "f" then Value := Integer (CPU.F);
+      elsif Name = "b" then Value := Integer (CPU.B);
+      elsif Name = "c" then Value := Integer (CPU.C);
+      elsif Name = "d" then Value := Integer (CPU.D);
+      elsif Name = "e" then Value := Integer (CPU.E);
+      elsif Name = "h" then Value := Integer (CPU.H);
+      elsif Name = "l" then Value := Integer (CPU.L);
+      elsif Name = "i" then Value := Integer (CPU.I);
+      elsif Name = "r" then Value := Integer (CPU.R);
+      elsif Name = "af" then Value := W (CPU.A, CPU.F);
+      elsif Name = "bc" then Value := W (CPU.B, CPU.C);
+      elsif Name = "de" then Value := W (CPU.D, CPU.E);
+      elsif Name = "hl" then Value := W (CPU.H, CPU.L);
+      elsif Name = "af'" then Value := W (CPU.A2, CPU.F2);
+      elsif Name = "bc'" then Value := W (CPU.B2, CPU.C2);
+      elsif Name = "de'" then Value := W (CPU.D2, CPU.E2);
+      elsif Name = "hl'" then Value := W (CPU.H2, CPU.L2);
+      elsif Name = "ix" then Value := Integer (CPU.IX);
+      elsif Name = "iy" then Value := Integer (CPU.IY);
+      elsif Name = "ixh" then Value := Integer (CPU.IX / 256);
+      elsif Name = "ixl" then Value := Integer (CPU.IX mod 256);
+      elsif Name = "iyh" then Value := Integer (CPU.IY / 256);
+      elsif Name = "iyl" then Value := Integer (CPU.IY mod 256);
+      elsif Name = "sp" then Value := Integer (CPU.SP);
+      elsif Name = "pc" then Value := Integer (CPU.PC);
+      elsif Name = "sf" then Value := Flag (7);
+      elsif Name = "zf" then Value := Flag (6);
+      elsif Name = "hf" then Value := Flag (4);
+      elsif Name = "pf" then Value := Flag (2);
+      elsif Name = "nf" then Value := Flag (1);
+      elsif Name = "cf" then Value := Flag (0);
+      else
+         return False;
+      end if;
+      return True;
+   end CPU_Name;
+
+   function Peek_Mem (Addr : Natural) return Natural is
+     (Natural (Memory.Read (Word (Addr mod 65536))));
+
+   function Peek_Byte (Addr : Word) return Byte is (Memory.Read (Addr));
+
+   function Condition_Holds (Addr : Word) return Boolean is
+   begin
+      Cond_Message := Null_Unbounded_String;
+      for I in 1 .. BP_Count loop
+         if Breakpoints (I) = Addr then
+            if Length (BP_Cond (I)) = 0 then
+               return True;
+            end if;
+            return Cond_Expr.Evaluate
+              (To_String (BP_Cond (I)), CPU_Name'Access, Asm.Lookup'Access,
+               Peek_Mem'Access) /= 0;
+         end if;
+      end loop;
+      return True;
+   exception
+      when E : Cond_Expr.Syntax_Error =>
+         Cond_Message := To_Unbounded_String
+           (Ada.Exceptions.Exception_Message (E));
+         return True;                    --  stop and show the error
+   end Condition_Holds;
+
+   function Condition_Error (Condition : String) return String is
+     (Cond_Expr.Error_Of (Condition, Asm.Lookup'Access));
+
+   ---------------------------------------------------------------------
+   --  Profiler
+   ---------------------------------------------------------------------
+
+   procedure Profile_Start is
+   begin
+      Prof_T := (others => 0);
+      Prof_N := (others => 0);
+      Prof_Total := 0;
+      Prof_On := True;
+   end Profile_Start;
+
+   procedure Profile_Stop is
+   begin
+      Prof_On := False;
+   end Profile_Stop;
+
+   function Profiling return Boolean is (Prof_On);
+   function Profile_Total return Long_Long_Integer is (Prof_Total);
+   function Profile_Time (Addr : Word) return Long_Long_Integer is
+     (Prof_T (Addr));
+   function Profile_Count (Addr : Word) return Natural is (Prof_N (Addr));
+
+   function Profile_Report (Top : Positive; Name : Name_Func := null)
+                            return String is
+      Best : array (1 .. Top) of Word := (others => 0);
+      Used : Natural := 0;
+      R : Unbounded_String;
+   begin
+      for A in Word loop
+         if Prof_T (A) > 0 then
+            --  insert A into the sorted list of the best
+            declare
+               Pos : Natural := Used + 1;
+            begin
+               while Pos > 1 and then Prof_T (Best (Pos - 1)) < Prof_T (A)
+               loop
+                  Pos := Pos - 1;
+               end loop;
+               if Pos <= Top then
+                  if Used < Top then
+                     Used := Used + 1;
+                  end if;
+                  Best (Pos + 1 .. Used) := Best (Pos .. Used - 1);
+                  Best (Pos) := A;
+               end if;
+            end;
+         end if;
+      end loop;
+      Append (R, "  share  address   T-states     times  instruction" &
+                ASCII.LF);
+      for I in 1 .. Used loop
+         declare
+            A : constant Word := Best (I);
+            Pct : constant Long_Long_Integer :=
+              (if Prof_Total = 0 then 0 else Prof_T (A) * 1000 / Prof_Total);
+            Len : Natural;
+            Ins : constant String :=
+              Disasm.Instruction (Peek_Byte'Access, A, Len);
+            function Pad (S : String; N : Natural) return String is
+              (if S'Length >= N then S else (1 .. N - S'Length => ' ') & S);
+            Pct_S : constant String :=
+              Ada.Strings.Fixed.Trim (Long_Long_Integer'Image (Pct / 10),
+                                      Ada.Strings.Left) & "." &
+              Ada.Strings.Fixed.Trim (Long_Long_Integer'Image (Pct mod 10),
+                                      Ada.Strings.Left) & "%";
+         begin
+            Append (R, Pad (Pct_S, 7) & "  $" & Disasm.Hex4 (A) &
+                      Pad (Long_Long_Integer'Image (Prof_T (A)), 12) &
+                      Pad (Natural'Image (Prof_N (A)), 10) & "  " & Ins &
+                      (if Name /= null and then Name (A) /= ""
+                       then "   ; " & Name (A) else "") & ASCII.LF);
+         end;
+      end loop;
+      return To_String (R);
+   end Profile_Report;
 
    procedure Stop (R : Stop_Reason) is
    begin
@@ -1463,7 +1628,7 @@ package body Machine is
          return True;
       end if;
       if not Skip_Break then
-         if BP_Map (CPU.PC) then
+         if BP_Map (CPU.PC) and then Condition_Holds (CPU.PC) then
             Stop (Breakpoint);
             return True;
          end if;
@@ -1522,8 +1687,14 @@ package body Machine is
          end loop;
          declare
             T0 : constant Integer := T;
+            PC0 : constant Word := CPU.PC;
          begin
             CPU.Step;
+            if Prof_On then
+               Prof_T (PC0) := Prof_T (PC0) + Long_Long_Integer (T - T0);
+               Prof_N (PC0) := Prof_N (PC0) + 1;
+               Prof_Total := Prof_Total + Long_Long_Integer (T - T0);
+            end if;
             if CPU.Interrupt_Accepted then
                --  the interrupt acknowledge restarts the line
                HSync (T0 + HSync_Phase_T);
@@ -1534,7 +1705,19 @@ package body Machine is
       else
          CPU.INT_Line := T < ULA.Int_Length;
          Spectrum_Traps;
-         CPU.Step;
+         if Prof_On then
+            declare
+               PC0 : constant Word := CPU.PC;
+               T0 : constant Integer := T;
+            begin
+               CPU.Step;
+               Prof_T (PC0) := Prof_T (PC0) + Long_Long_Integer (T - T0);
+               Prof_N (PC0) := Prof_N (PC0) + 1;
+               Prof_Total := Prof_Total + Long_Long_Integer (T - T0);
+            end;
+         else
+            CPU.Step;
+         end if;
       end if;
       if not Wait_Seen and then In_Key_Wait then
          Wait_Seen := True;
@@ -1684,7 +1867,11 @@ package body Machine is
    begin
       case Reason is
          when None => return "";
-         when Breakpoint => return "breakpoint at $" & Disasm.Hex4 (CPU.PC);
+         when Breakpoint =>
+            return "breakpoint at $" & Disasm.Hex4 (CPU.PC) &
+              (if Length (Cond_Message) > 0
+               then " (condition: " & To_String (Cond_Message) & ")"
+               else "");
          when Watch_Read =>
             return "read of $" & Disasm.Hex4 (Watch_Addr) & " (PC $" &
               Disasm.Hex4 (CPU.PC) & ")";
@@ -1739,20 +1926,38 @@ package body Machine is
       return To_String (R);
    end Watch_List;
 
-   procedure Set_Breakpoint (Addr : Word) is
+   procedure Set_Breakpoint (Addr : Word; Condition : String := "") is
    begin
-      if not BP_Map (Addr) and then BP_Count < Max_BP then
+      for I in 1 .. BP_Count loop
+         if Breakpoints (I) = Addr then
+            BP_Cond (I) := To_Unbounded_String (Condition);
+            return;
+         end if;
+      end loop;
+      if BP_Count < Max_BP then
          BP_Count := BP_Count + 1;
          Breakpoints (BP_Count) := Addr;
+         BP_Cond (BP_Count) := To_Unbounded_String (Condition);
          BP_Map (Addr) := True;
       end if;
    end Set_Breakpoint;
+
+   function Breakpoint_Condition (Addr : Word) return String is
+   begin
+      for I in 1 .. BP_Count loop
+         if Breakpoints (I) = Addr then
+            return To_String (BP_Cond (I));
+         end if;
+      end loop;
+      return "";
+   end Breakpoint_Condition;
 
    procedure Clear_Breakpoint (Addr : Word) is
    begin
       for I in 1 .. BP_Count loop
          if Breakpoints (I) = Addr then
             Breakpoints (I .. BP_Count - 1) := Breakpoints (I + 1 .. BP_Count);
+            BP_Cond (I .. BP_Count - 1) := BP_Cond (I + 1 .. BP_Count);
             BP_Count := BP_Count - 1;
             BP_Map (Addr) := False;
             return;
@@ -1773,6 +1978,9 @@ package body Machine is
    begin
       for I in 1 .. BP_Count loop
          Append (R, " $" & Disasm.Hex4 (Breakpoints (I)));
+         if Length (BP_Cond (I)) > 0 then
+            Append (R, " if " & To_String (BP_Cond (I)) & ";");
+         end if;
       end loop;
       return To_String (R);
    end Breakpoint_List;

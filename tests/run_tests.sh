@@ -160,4 +160,12 @@ if [ -f roms/esxmmc.bin ] && [ -d roms/esxdos ]; then
 else
   echo "skip DivMMC (no roms/esxmmc.bin and roms/esxdos/)"
 fi
+# Debugger: a breakpoint with a condition (stops at the frame interrupt
+# only when FRAMES = $40) and the profiler
+bin/adazx --headless 300 --png "$T/x.png" --break-if 38 '[23672] = $40 and iy = $5c3a' \
+  --monitor 'm 5c78 5c78' > "$T/bc.out"
+check "conditional breakpoint" "$T/bc.out" "^5C78  40 "
+printf '10 FOR I=1 TO 200\n20 LET X=SQR I\n30 NEXT I\n' > "$T/prof.bas"
+bin/adazx --headless 600 --png "$T/x.png" --profile "$T/prof.bas" > "$T/prof.out"
+check "profiler (calculator's LDIR on top)" "$T/prof.out" "\$33C3 .*LDIR"
 exit $fail
