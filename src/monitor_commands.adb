@@ -154,7 +154,10 @@ package body Monitor_Commands is
                             else Next_Dis);
                Len : Natural;
             begin
-               for K in 1 .. 16 loop
+               for K in 1 .. (if N >= 2
+                              then Natural'Min (Natural'Max (Args (2), 1), 1024)
+                              else 16)
+               loop
                   Print (Dis_Line (A, Len));
                   A := A + Word (Len);
                end loop;
@@ -243,7 +246,7 @@ package body Monitor_Commands is
             Resume_Requested := True;
 
          elsif C = "h" or else C = "?" or else C = "help" then
-            Print ("r regs | z [n] step | d [addr] disasm | m [a [b]] memory" &
+            Print ("r regs | z [n] step | d [addr [n]] disasm | m [a [b]] memory" &
                    " | > addr bytes | g [addr] go | x exit");
             Print ("b addr break | bd [addr] delete | bl list |" &
                    " w [a [b]] watch (none = clear) | io chip state");

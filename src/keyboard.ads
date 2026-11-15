@@ -98,6 +98,11 @@ package Keyboard is
    procedure Type_Keys (S : String);
    --  Queue keys to be pressed (one per few frames); LF = ENTER.
    procedure Type_Pause (Frames : Positive);
+   procedure Type_Wait (Max_Frames : Positive);
+   --  Wait until Ready says the machine waits for a key again (at least
+   --  a few frames, at most Max_Frames).
+   type Ready_Func is access function return Boolean;
+   Ready : Ready_Func := null;
    function Typing_Busy return Boolean;
    procedure Clear_Typing;
    procedure Tick_Typing;

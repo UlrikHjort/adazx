@@ -1835,6 +1835,8 @@ package body Machine is
 
    function ROM_File (Name : String) return String is (Find_ROM (Name));
 
+   function Ready_For_Keys return Boolean is (At_Prompt);
+
    procedure Shutdown is
    begin
       DSK.Flush_All;
@@ -1909,4 +1911,6 @@ package body Machine is
    function Disc_Active return Boolean is
      (FDC765.Motor and then Model = Config.Plus3);
 
+begin
+   Keyboard.Ready := Ready_For_Keys'Access;
 end Machine;

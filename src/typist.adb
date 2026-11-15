@@ -144,7 +144,11 @@ package body Typist is
                Type_Line (S (Start .. I - 1));
             end if;
             Press (K_Enter);
-            Type_Pause (if Config.Is_ZX81 then 60 else 3);
+            if Config.Is_ZX81 then
+               Type_Wait (200);     --  until the editor is ready again
+            else
+               Type_Pause (3);
+            end if;
             Start := I + 1;
          end if;
       end loop;

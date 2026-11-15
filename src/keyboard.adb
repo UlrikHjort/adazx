@@ -426,6 +426,7 @@ package body Keyboard is
       C : Combo;
       Frames : Natural := 2;
       Pause : Boolean := False;
+      Wait : Boolean := False;     --  a pause that ends when Ready
    end record;
 
    Queue : array (1 .. 16_384) of Entry_Type;
@@ -443,13 +444,20 @@ package body Keyboard is
 
    procedure Type_Combo (C : Combo; Hold_Frames : Positive := 2) is
    begin
-      Add ((C => C, Frames => Hold_Frames, Pause => False));
+      Add ((C => C, Frames => Hold_Frames, Pause => False, Wait => False));
    end Type_Combo;
 
    procedure Type_Pause (Frames : Positive) is
    begin
-      Add ((C => (others => <>), Frames => Frames, Pause => True));
+      Add ((C => (others => <>), Frames => Frames, Pause => True,
+            Wait => False));
    end Type_Pause;
+
+   procedure Type_Wait (Max_Frames : Positive) is
+   begin
+      Add ((C => (others => <>), Frames => Max_Frames, Pause => True,
+            Wait => True));
+   end Type_Wait;
 
    procedure Type_Keys (S : String) is
       Found : Boolean;
@@ -512,7 +520,10 @@ package body Keyboard is
       begin
          Phase := Phase + 1;
          if E.Pause then
-            if Phase >= E.Frames then
+            if Phase >= E.Frames
+              or else (E.Wait and then Phase >= 5 and then Ready /= null
+                       and then Ready.all)
+            then
                Phase := 0;
                Q_Pos := Q_Pos + 1;
             end if;
