@@ -1166,7 +1166,7 @@ package body Machine is
       then
          return;
       end if;
-      if PC = 16#0010# and then Print_Log then
+      if PC = 16#15F2# and then Print_Log then     --  PRINT-A-2 (RST 16 and numbers)
          Log_Print (Hi (CPU.AF));
          Memory.Write (23692, 255);    --  SCR_CT: no "scroll?" prompts
       end if;

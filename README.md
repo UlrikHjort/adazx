@@ -65,7 +65,7 @@ Use a copy you are entitled to use, and do not pass it on with AdaZX.
 | Part | Notes |
 |------|-------|
 | Z80 | All documented and undocumented instructions and flags, MEMPTR and Q, IM 0/1/2, NMI, HALT. Every memory and I/O cycle happens at its own T-state, so contention is applied exactly: passes all 1356 tests of Fuse's per-cycle suite (bus events and timings identical), ZEXALL and all variants of Patrik Rak's z80test 1.2a (including the flags of interrupted LDIR / INIR, MEMPTR and CCF). |
-| ULA (Spectrum) | 48K / 128K / +2A timings (69888 / 70908 T-states), memory and I/O contention, the picture drawn behind the CPU in 8-pixel steps (border and multicolour effects appear where they happen), FLASH, floating bus. |
+| ULA (Spectrum) | 48K / 128K / +2A timings (69888 / 70908 T-states), memory and I/O contention, the picture drawn behind the CPU in 8-pixel steps (border and multicolour effects appear where they happen), FLASH, floating bus (48K and 128K phases checked with Richard Butler's timing tests and Ramsoft's Floating Spy; all 72 timing cases pass). |
 | Memory | 128K paging (&7FFD), +2A / +3 paging and all-RAM modes (&1FFD). |
 | +3 disc | uPD765A controller (read / write / deleted data, read track, read ID, format, seek, sense status; +3DOS polling, no terminal count) with two drives; .dsk images (standard and extended, sector status flags kept for copy protection) written back as extended DSK; blank formatted discs (File menu or `--new-disc`); a .dsk autostarts through the menu's Loader. |
 | Sound | Beeper and MIC, AY-3-8912 (128K models: tones, noise, envelopes), the tape signal while loading; PulseAudio, which also paces the emulation. |
@@ -136,6 +136,7 @@ Tools:
     tests/             Fuse's Z80 tests (GPL, from Fuse 1.6.0), ZEXDOC /
                        ZEXALL (GPL), assembler round trip, run_tests.sh
     tests/z80test/     Patrik Rak's z80test 1.2a tapes (MIT, see LICENSE there)
+    tests/timing/      Richard Butler's 48K timing tests (GPL-3.0 redistribution)
     examples/          hello.asm (Spectrum), zx81hello.asm
 
 ## License

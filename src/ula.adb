@@ -159,7 +159,10 @@ package body ULA is
          return 16#FF#;
       end if;
       declare
-         Rel : constant Integer := T - (Display_Start - 1);
+         Rel : constant Integer :=
+           T - Display_Start + (if Model in ZX128 .. Plus2 then 2 else 0);
+         --  (checked with Richard Butler's 48K timing tests 35 - 37 and
+         --  Ramsoft's Floating Spy self test on the 48K and 128K)
          Y : constant Integer := Rel / Line_T;
          H : constant Integer := Rel mod Line_T;
       begin

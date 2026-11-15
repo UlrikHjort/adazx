@@ -136,4 +136,11 @@ for t in z80full z80memptr z80ccf; do
     tests/z80test/$t.tap > "$T/$t.out"
   check "z80test $t" "$T/$t.out" "Result: all tests passed"
 done
+# Richard Butler's 48K timing tests (tests/timing): instruction timings
+# with and without contention, and the floating bus (35 - 37)
+bin/adazx --headless 20000 --png "$T/x.png" --print-log --type-at 300 '\n' \
+  --type-at 12000 ' ' --type-at 13000 ' ' --type-at 14000 ' ' \
+  --type-at 15000 ' ' tests/timing/timing_tests_48k_v1.0.z80 > "$T/tm.log"
+echo "pass $(grep -c Pass "$T/tm.log") fail $(grep -c Fail "$T/tm.log")" > "$T/tm.out"
+check "48K timing tests (all 72 cases, floating bus)" "$T/tm.out" "^pass 7[2-9] fail 0$"
 exit $fail

@@ -1,0 +1,6 @@
+timing_tests_48k_v1.0.z80: Richard Butler's 48K ZX Spectrum timing test
+suite (https://www.zxspectrum4.net/op_timing.php), as redistributed in
+MrKWatkins' EmulatorTestSuites (https://github.com/MrKWatkins/EmulatorTestSuites,
+GPL-3.0).  34 instruction timing groups, uncontended and contended, and
+three floating bus tests (35 - 37).  run_tests.sh runs all of them
+(ENTER at the menu) and requires every one to pass.
