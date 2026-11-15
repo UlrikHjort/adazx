@@ -32,7 +32,7 @@ with Types; use Types;
 
 package AY is
 
-   Clock_Hz : constant := 1_773_400;
+   Clock_Hz : Positive := 1_773_400;   --  ZX81 sound boards run slower
 
    Regs : array (0 .. 15) of Byte := (others => 0);
    Selected : Natural range 0 .. 15 := 0;

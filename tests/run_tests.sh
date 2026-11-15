@@ -120,4 +120,13 @@ printf '10 PRINT CHR$ 1\n' > "$T/q.b81"
 bin/adazx --zx81 --headless 600 --png "$T/q.png" "$T/q.b81" > /dev/null
 python3 tests/png_runs.py "$T/q.png" 90 > "$T/q.out"
 check "ZX81 character rows start at line 0" "$T/q.out" "^96:8 "
+# ZX81 AY sound boards: tone A, period 200, at each board's AY clock
+bin/adazx --zx81 --zonx --headless 600 --png "$T/x.png" --wav "$T/zonx.wav" \
+  tests/zonx.asm > /dev/null
+python3 tests/wav_freq.py "$T/zonx.wav" > "$T/zonx.out"
+check "ZX81 ZON X-81 sound board (508 Hz)" "$T/zonx.out" "^50[789]$"
+bin/adazx --zx81 --quicksilva --headless 600 --png "$T/x.png" --wav "$T/qs.wav" \
+  tests/quicksilva.asm > /dev/null
+python3 tests/wav_freq.py "$T/qs.wav" > "$T/qs.out"
+check "ZX81 Quicksilva sound board (254 Hz)" "$T/qs.out" "^25[345]$"
 exit $fail

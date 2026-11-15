@@ -237,6 +237,16 @@ package body Machine is
       if not Config.Is_ZX81 and then ULA.Is_Screen_Address (Addr) then
          ULA.Render_To (T);
       end if;
+      if Config.ZX81_Sound = Config.Quicksilva and then Config.Is_ZX81
+        and then Addr >= 16#7FFE#
+      then
+         Sound.Update (T);
+         if Addr = 16#7FFF# then
+            AY.Select_Register (Value);
+         else
+            AY.Write (Value);
+         end if;
+      end if;
       Memory.Write (Addr, Value);
    end Bus_Write;
 
@@ -388,6 +398,14 @@ package body Machine is
    begin
       if Config.Is_ZX81 then
          T := T + 4;
+         if Config.ZX81_Sound = Config.ZON_X then
+            if (Lo (Port) and 16#F0#) = 0 then
+               Sound.Update (T);
+               AY.Write (Value);                --  &0F: data
+            elsif (Lo (Port) and 16#20#) = 0 then
+               AY.Select_Register (Value);      --  &DF / &CF: register
+            end if;
+         end if;
          if VSync then
             VSync := False;             --  end of vertical sync
             if T - VSync_Start_T >= Min_VSync_T then
@@ -513,6 +531,12 @@ package body Machine is
       Memory.Reset_Paging;
       CPU.Reset;
       T := 0;
+      AY.Clock_Hz :=
+        (if not Config.Is_ZX81 then 1_773_400
+         else (case Config.ZX81_Sound is
+                  when Config.ZON_X => 1_625_000,
+                  when Config.Quicksilva => 812_500,
+                  when Config.No_Board => 1_773_400));
       AY.Reset;
       FDC765.Reset;
       Interface_1.Reset;

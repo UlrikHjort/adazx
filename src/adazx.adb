@@ -30,6 +30,7 @@
 --                       model (default: last used, 48K)
 --    --roms DIR         ROM directory (default: roms/ next to the program)
 --    --1k               ZX81 / ZX80 without the 16K RAM pack
+--    --zonx / --quicksilva  ZX81 / ZX80 AY sound board
 --    --ram2000          ZX81 with 8K RAM at &2000 (hi-res programs)
 --    --issue2           48K issue 2 keyboard (EAR bit)
 --    --real-tape        no flash loading: load tapes in real time
@@ -175,6 +176,10 @@ begin
             ROM_Dir := To_Unbounded_String (Next);
          elsif A = "--1k" then
             Machine.ZX81_16K := False;
+         elsif A = "--zonx" then
+            Config.ZX81_Sound := Config.ZON_X;
+         elsif A = "--quicksilva" then
+            Config.ZX81_Sound := Config.Quicksilva;
          elsif A = "--ram2000" then
             Machine.ZX81_RAM_2000 := True;
          elsif A = "--issue2" then

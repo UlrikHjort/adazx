@@ -102,6 +102,7 @@ package body GUI is
    Item_Auto_Play : Gtk_Check_Menu_Item;
    Item_Tape_Sound : Gtk_Check_Menu_Item;
    Item_16K, Item_2000, Item_Issue2, Item_IF1 : Gtk_Check_Menu_Item;
+   Item_ZONX, Item_QS : Gtk_Check_Menu_Item;
    Model_Items : array (Model_Type) of Gtk_Radio_Menu_Item;
    Updating_Menu : Boolean := False;
 
@@ -185,6 +186,8 @@ package body GUI is
       Item_Tape_Sound.Set_Active (Sound.Tape_Noise);
       Item_16K.Set_Active (Machine.ZX81_16K);
       Item_2000.Set_Active (Machine.ZX81_RAM_2000);
+      Item_ZONX.Set_Active (Config."=" (Config.ZX81_Sound, Config.ZON_X));
+      Item_QS.Set_Active (Config."=" (Config.ZX81_Sound, Config.Quicksilva));
       Item_Issue2.Set_Active (Machine.Issue_2);
       Item_IF1.Set_Active (Machine.Interface_1_Fitted);
       Model_Items (Machine.Model).Set_Active (True);
@@ -600,6 +603,14 @@ package body GUI is
       Machine.ZX81_16K := Item_16K.Get_Active;
       Machine.ZX81_RAM_2000 := Item_2000.Get_Active;
       Machine.Issue_2 := Item_Issue2.Get_Active;
+      if Gtk_Check_Menu_Item (Item) = Item_ZONX then
+         Config.ZX81_Sound :=
+           (if Item_ZONX.Get_Active then Config.ZON_X else Config.No_Board);
+      elsif Gtk_Check_Menu_Item (Item) = Item_QS then
+         Config.ZX81_Sound :=
+           (if Item_QS.Get_Active then Config.Quicksilva
+            else Config.No_Board);
+      end if;
       if Gtk_Check_Menu_Item (Item) /= Item_Issue2
         and then Machine.Is_ZX81
       then
@@ -788,6 +799,8 @@ package body GUI is
       Settings.Set ("tapesound", Sound.Tape_Noise);
       Settings.Set ("zx81_16k", Machine.ZX81_16K);
       Settings.Set ("zx81_ram2000", Machine.ZX81_RAM_2000);
+      Settings.Set ("zx81_sound",
+                    Config.ZX81_Sound_Type'Image (Config.ZX81_Sound));
       Settings.Set ("issue2", Machine.Issue_2);
       Settings.Set ("interface1", Interface_1.Enabled);
       Settings.Set ("lastdir", To_String (Last_Dir));
@@ -1266,6 +1279,13 @@ package body GUI is
       Machine.ZX81_16K := Settings.Get ("zx81_16k", Machine.ZX81_16K);
       Machine.ZX81_RAM_2000 :=
         Settings.Get ("zx81_ram2000", Machine.ZX81_RAM_2000);
+      declare
+         V : constant String := Settings.Get ("zx81_sound", "NO_BOARD");
+      begin
+         Config.ZX81_Sound := Config.ZX81_Sound_Type'Value (V);
+      exception
+         when Constraint_Error => null;
+      end;
       Machine.Issue_2 := Settings.Get ("issue2", Machine.Issue_2);
       if not Interface_1.Enabled then
          Interface_1.Enabled := Settings.Get ("interface1", False);
@@ -1350,6 +1370,10 @@ package body GUI is
       Add_Check (M_Machine, "ZX81 / ZX80: 16K RAM pack", Item_16K,
                  On_ZX81_Option'Access);
       Add_Check (M_Machine, "ZX81: 8K RAM at &2000 (hi-res)", Item_2000,
+                 On_ZX81_Option'Access);
+      Add_Check (M_Machine, "ZX81 / ZX80: ZON X-81 sound board", Item_ZONX,
+                 On_ZX81_Option'Access);
+      Add_Check (M_Machine, "ZX81 / ZX80: Quicksilva sound board", Item_QS,
                  On_ZX81_Option'Access);
       Add_Check (M_Machine, "48K: issue 2 keyboard", Item_Issue2,
                  On_ZX81_Option'Access);

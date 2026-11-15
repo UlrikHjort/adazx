@@ -36,6 +36,14 @@ package Config is
    --  The ZX81 family (ZX81 or ZX80): display, keyboard and memory
    function Is_ZX80 return Boolean is (Model = ZX80);
    function Is_128 return Boolean is (Model in ZX128 .. Plus3);
+
+   --  AY sound boards for the ZX81 / ZX80: the ZON X-81 (Bi-Pak; ports
+   --  &DF / &CF select a register, &0F writes it; 1.625 MHz) and the
+   --  Quicksilva board (memory mapped: &7FFF select, &7FFE data; 0.8125 MHz)
+   type ZX81_Sound_Type is (No_Board, ZON_X, Quicksilva);
+   ZX81_Sound : ZX81_Sound_Type := No_Board;
+   function Has_AY return Boolean is
+     (Is_128 or else (Is_ZX81 and then ZX81_Sound /= No_Board));
    function Is_Plus3_Type return Boolean is (Model in Plus2A .. Plus3);
 
    function Model_Name (M : Model_Type) return String is

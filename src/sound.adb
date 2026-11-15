@@ -44,7 +44,7 @@ package body Sound is
       Acc := 0.0;
       Beeper := 0.0;
       Tape_Level := 0.0;
-      AY_Enabled := Config.Is_128;
+      AY_Enabled := Config.Has_AY;
    end Reset;
 
    function Level return Float is
