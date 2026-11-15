@@ -135,6 +135,18 @@ package body Machine is
    ZX81_Line_T : constant := 207;
    ZX81_Frame_T : constant := 207 * 312;
    Lines_Since_VSync : Natural := 0;
+   VSync_Start_T : Integer := 0;
+   Skip_Count : Boolean := False;
+   --  LINECNTR stays 0 until the second HSYNC after the end of VSYNC
+   --  (the ROM's dummy line after the top margin then has LINECNTR 7,
+   --  so the first character row starts with 0).  A VSYNC pulse too
+   --  short for the television (the per-scanline IN / OUT of pseudo
+   --  hi-res displays) does not start a frame.
+   Min_VSync_T : constant := 200;
+   HSync_Phase_T : constant := 33;
+   --  the HSYNC pulse (and the NMI) comes this long after the start of
+   --  the line as the interrupt acknowledge sets it; displays timed from
+   --  the NMI (pseudo hi-res) are positioned by it
    Line_Start_T : Integer := 0;
    ZX81_Top : constant := 56 - Video.Border + 1;
    --  scanlines after the end of VSYNC before the framebuffer's top row
@@ -153,10 +165,11 @@ package body Machine is
 
    procedure HSync (At_T : Integer) is
    begin
-      Line_Start_T := At_T;
-      if not VSync then
+      Line_Start_T := At_T - HSync_Phase_T;
+      if not VSync and then not Skip_Count then
          Line_Counter := (Line_Counter + 1) mod 8;
       end if;
+      Skip_Count := False;
       Lines_Since_VSync := Lines_Since_VSync + 1;
       if Lines_Since_VSync > 400 then
          --  no VSYNC (FAST mode): the television shows no picture
@@ -331,6 +344,9 @@ package body Machine is
          if (Port and 1) = 0 then
             V := Keyboard.Read_Rows (Hi (Port)) or 16#40#;   --  50 Hz
             if not NMI_Gen then
+               if not VSync then
+                  VSync_Start_T := T;
+               end if;
                VSync := True;          --  start of vertical sync
                Line_Counter := 0;
             end if;
@@ -374,7 +390,10 @@ package body Machine is
          T := T + 4;
          if VSync then
             VSync := False;             --  end of vertical sync
-            Lines_Since_VSync := 0;
+            if T - VSync_Start_T >= Min_VSync_T then
+               Lines_Since_VSync := 0;
+            end if;
+            Skip_Count := True;
          end if;
          case Lo (Port) is
             when 16#FD# => NMI_Gen := False;
@@ -1341,6 +1360,7 @@ package body Machine is
       Tape.End_Frame (Length);
       T := T - Length;
       Next_HSync := Next_HSync - Length;
+      VSync_Start_T := VSync_Start_T - Length;
       Line_Start_T := Line_Start_T - Length;
       Total_Cycles := Total_Cycles + Long_Long_Integer (Length);
       End_Of_Frame;
@@ -1417,8 +1437,8 @@ package body Machine is
             CPU.Step;
             if CPU.Interrupt_Accepted then
                --  the interrupt acknowledge restarts the line
-               HSync (T0);
-               Next_HSync := T0 + ZX81_Line_T;
+               HSync (T0 + HSync_Phase_T);
+               Next_HSync := T0 + HSync_Phase_T + ZX81_Line_T;
             end if;
          end;
          ZX81_Traps;

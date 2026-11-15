@@ -74,7 +74,7 @@ Use a copy you are entitled to use, and do not pass it on with AdaZX.
 | Interface 1 | Shadow ROM paged at &0008 / &1708 and out after &0700, eight Microdrives with .mdr cartridges (read-driven tape loop with GAP / SYNC as in Fuse), FORMAT / SAVE * / LOAD * / CAT, cartridges written back; blank cartridges (File menu or `--new-mdr`); a .mdr autostarts by loading "run". RS232 and network are not connected. |
 | ZX80 | The ZX81 display hardware without the NMI generator (a picture only while the ROM waits for a key, as on the real machine), 4K ROM, 1K or 16K RAM; .o files load through the ROM's LOAD and SAVE writes .o; ZX80 BASIC (integer, operators as tokens) in the tokenizer, lister, typing and Forge; machine code in a REM line at 16427 called with PRINT USR (the ZX80's USR returns HL). |
 | Joysticks | Kempston, Sinclair 1 / 2, Cursor; keypad, cursor keys or a game controller. |
-| ZX81 | Display generated as on the real machine: the CPU executes the display file above 32K, the ULA turns characters into NOPs and fetches their pattern (I register, line counter), HSYNC / NMI generator / VSYNC from the ports, INT from A6 during refresh; SLOW and FAST mode, WRX hi-res (pattern from RAM via the refresh address), 1K or 16K, optional 8K RAM at &2000. .p files load through the ROM's LOAD (trap), SAVE writes a .p. |
+| ZX81 | Display generated as on the real machine: the CPU executes the display file above 32K, the ULA turns characters into NOPs and fetches their pattern (I register, line counter), HSYNC / NMI generator / VSYNC from the ports, INT from A6 during refresh; SLOW and FAST mode, WRX hi-res (pattern from RAM via the refresh address), pseudo hi-res with a VSYNC per scanline (short pulses don't start a frame; HSYNC kept free-running under DI), 1K or 16K, optional 8K RAM at &2000. .p files load through the ROM's LOAD (trap), SAVE writes a .p. |
 
 ## Keys
 
@@ -118,9 +118,7 @@ Tools:
 
 ## Not (yet) emulated
 
-ZX81 sound boards. The ZX81
-pseudo hi-res of some programs (sz81's tetris title) shows thin
-two-scanline offsets that have not been checked against a reference.
+ZX81 sound boards.
 
 ## Source layout
 
