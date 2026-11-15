@@ -41,6 +41,7 @@ with Gtk.Check_Button; use Gtk.Check_Button;
 with Gtk.Drawing_Area; use Gtk.Drawing_Area;
 with Gtk.Enums; use Gtk.Enums;
 with Gtk.Frame; use Gtk.Frame;
+with Gtk.GEntry; use Gtk.GEntry;
 with Gtk.Label; use Gtk.Label;
 with Gtk.Radio_Button; use Gtk.Radio_Button;
 with Gtk.Scrolled_Window; use Gtk.Scrolled_Window;
@@ -58,6 +59,7 @@ with Cairo.Surface;
 
 with Types; use Types;
 with Machine;
+with Memory;
 with Video;
 with Settings;
 with Editor_Util; use Editor_Util;
@@ -80,10 +82,13 @@ package body Screen_Editor is
    Ink : Natural := 0;
    Paper : Natural := 7;
 
-   type Tool_Kind is (Pencil, Line, Rect, Box, Circle, Fill, Attribute);
+   type Tool_Kind is (Pencil, Line, Rect, Box, Circle, Fill, Attribute,
+                      Text);
    Tool : Tool_Kind := Pencil;
    Tool_Buttons : array (Tool_Kind) of Gtk_Radio_Button;
 
+   Text_Entry : Gtk_GEntry;
+   Snap : Boolean := True;          --  text on character cells
    Dragging : Boolean := False;
    Draw_Ink : Boolean := True;
    Start_X, Start_Y, Last_X, Last_Y : Integer := 0;
@@ -395,6 +400,36 @@ package body Screen_Editor is
    function PX (V : Gdouble) return Integer is
      (Integer (Gdouble'Floor (V / Gdouble (Zoom))));
 
+   --  The entry's text in the 48K ROM's font, like PRINT (ink on paper;
+   --  On = False: inverse), at the pixel X, Y
+   procedure Stamp_Text (X, Y : Integer; On : Boolean) is
+      T : constant String := Text_Entry.Get_Text;
+      Font : constant Natural :=
+        Memory.ROM_Base (Memory.Basic48_ROM) + 16#3D00#;
+      X0 : constant Integer := (if Snap then X - X mod 8 else X);
+      Y0 : constant Integer := (if Snap then Y - Y mod 8 else Y);
+   begin
+      for I in T'Range loop
+         declare
+            Code : constant Natural :=
+              (if Character'Pos (T (I)) in 32 .. 127
+               then Character'Pos (T (I)) else 63);
+            CX : constant Integer := X0 + (I - T'First) * 8;
+         begin
+            for R in 0 .. 7 loop
+               declare
+                  G : constant Byte := Memory.Store (Font + (Code - 32) * 8 + R);
+               begin
+                  for B in 0 .. 7 loop
+                     Put (CX + B, Y0 + R,
+                          ((G and Shift_Right (Byte'(16#80#), B)) /= 0) = On);
+                  end loop;
+               end;
+            end loop;
+         end;
+      end loop;
+   end Stamp_Text;
+
    procedure Apply_Shape (X, Y : Integer) is
    begin
       Scr := Base;
@@ -416,6 +451,8 @@ package body Screen_Editor is
                            (Float ((X - Start_X) ** 2
                                    + (Y - Start_Y) ** 2)))),
                          Draw_Ink);
+         when Text =>
+            Stamp_Text (X, Y, Draw_Ink);
          when others => null;
       end case;
    end Apply_Shape;
@@ -431,6 +468,7 @@ package body Screen_Editor is
       end if;
       Push_Undo;
       Draw_Ink := Event.Button /= 3;
+      Snap := (Event.State and Shift_Mask) = 0;
       Dragging := True;
       Start_X := X;
       Start_Y := Y;
@@ -908,7 +946,8 @@ package body Screen_Editor is
          To_Unbounded_String ("Rectangle"),
          To_Unbounded_String ("Filled rectangle"),
          To_Unbounded_String ("Circle"), To_Unbounded_String ("Fill"),
-         To_Unbounded_String ("Attribute brush"));
+         To_Unbounded_String ("Attribute brush"),
+         To_Unbounded_String ("Text (drag to place)"));
    begin
       Gtk_New (Win);
       Win.Set_Title ("Spectrum screen editor");
@@ -965,6 +1004,12 @@ package body Screen_Editor is
          Tool_Buttons (T).On_Toggled (On_Tool_Kind'Access);
          Side.Pack_Start (Tool_Buttons (T), Expand => False, Fill => False);
       end loop;
+      Gtk_New (Text_Entry);
+      Text_Entry.Set_Text ("HELLO");
+      Text_Entry.Set_Tooltip_Text
+        ("Text for the Text tool, in the ROM font: on character cells " &
+         "(Shift: anywhere); right button: inverse");
+      Side.Pack_Start (Text_Entry, Expand => False, Fill => False);
 
       Gtk_New (Palette);
       Palette.Set_Size_Request (8 * Swatch, Swatch + 18);

@@ -108,7 +108,8 @@ Tools:
   whole font; export as DATA + POKE lines or db lines; show / live / grab
   with the emulator.
 * **Spectrum screen editor** (Ctrl+B, `.scr`): pencil, line, rectangles,
-  circle, fill, attribute brush, ink / paper / BRIGHT / FLASH, PNG import
+  circle, fill, attribute brush, text in the ROM font (dragged into place, on
+  character cells or anywhere with Shift), ink / paper / BRIGHT / FLASH, PNG import
   (best two colours per cell, ordered dithering), export as db lines or a
   .tap with `LOAD ""SCREEN$`; show / live / grab.
 * **ZX81 screen editor** (Ctrl+R, `.z81s`): typing (inverse with Ctrl+I),
