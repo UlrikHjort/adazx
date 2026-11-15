@@ -41,6 +41,9 @@
 --    --disc FILE        insert a .dsk in drive A of the +3
 --    --if1              fit the Interface 1 (48K / 128K)
 --    --mdr FILE         Interface 1 with the .mdr cartridge in Microdrive 1
+--    --beta             the Beta 128 disk interface (TR-DOS) on a 48K / 128K
+--    --trd FILE         a .trd / .scl disc in TR-DOS drive A (and --beta)
+--    --new-trd FILE     a new blank .trd in drive A
 --    --divmmc           DivMMC with esxDOS (roms/esxmmc.bin)
 --    --sd FILE          DivMMC with FILE (an SD card image) in its slot
 --    --sd-dir DIR       DivMMC with a card built from the folder DIR (and
@@ -254,6 +257,24 @@ begin
                   Put_Line (Machine.Error_Message);
                elsif A = "--new-sd" then
                   Put_Line ("wrote " & Arg);
+               end if;
+            end;
+         elsif A = "--beta" then
+            Machine.Beta_Wanted := True;
+         elsif A = "--trd" or else A = "--new-trd" then
+            declare
+               P : constant String := Next;
+               Ok_T : Boolean := True;
+            begin
+               Machine.Beta_Wanted := True;
+               if A = "--new-trd" then
+                  Machine.Create_TRD (P, Ok_T);
+               end if;
+               if Ok_T then
+                  Machine.Insert_TRD (0, P, Ok_T);
+               end if;
+               if not Ok_T then
+                  Put_Line (Machine.Error_Message);
                end if;
             end;
          elsif A = "--divmmc" then

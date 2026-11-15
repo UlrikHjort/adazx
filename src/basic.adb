@@ -419,6 +419,7 @@ package body Basic is
       Start : constant Natural := Out_Len;
       P : Natural := Text'First;
       In_Rem : Boolean := False;
+      Rem_K : Boolean := False;      --  a ':' in a REM: K mode
       Inverse : Boolean := False;
       Def_Fn : Natural := 0;    --  1: after DEF FN, 2: in its parameters
 
@@ -705,7 +706,21 @@ package body Basic is
             C : constant Character := Text (P);
          begin
             if In_Rem then
-               Literal;
+               --  after a ':' the editor is in K mode even in a REM (TR-DOS
+               --  and other extensions read their commands from there)
+               if D = Spectrum and then Rem_K and then C /= ' '
+                 and then Try_Keyword
+               then
+                  In_Rem := True;
+                  Rem_K := False;
+               else
+                  if C = ':' then
+                     Rem_K := True;
+                  elsif C /= ' ' then
+                     Rem_K := False;
+                  end if;
+                  Literal;
+               end if;
             elsif Def_Fn > 0 and then C in '(' | ')' | ',' | '$'
               | 'a' .. 'z' | 'A' .. 'Z' | ' '
             then

@@ -1047,7 +1047,7 @@ package body Machine is
    function Typing_Busy return Boolean is (Keyboard.Typing_Busy);
 
    type Auto_Stage is (Idle, Wait_Prompt, Typing_Load, Wait_Loaded,
-                       Wait_Inject);
+                       Wait_Inject, Wait_TRDOS);
    Stage : Auto_Stage := Idle;
    Menu_Frame : Integer := -1;      --  when the 128K menu choice was made
    Stage_Frames : Natural := 0;
@@ -1110,6 +1110,29 @@ package body Machine is
                Stage_Frames := 0;
             end if;
          when Typing_Load => null;
+         when Wait_TRDOS =>
+            --  128K: "48 BASIC" (the fourth menu entry), then from BASIC
+            --  RANDOMIZE USR 15619: REM : RUN (TR-DOS runs "boot")
+            if Is_128 and then Menu_Frame < 0 then
+               if Stage_Frames mod 10 = 0 and then Screen_Contains ("BASIC")
+               then
+                  for K in 1 .. 3 loop
+                     Keyboard.Type_Combo ((Key => Keyboard.Digit ('6'),
+                                           Caps => True, Sym => False));
+                  end loop;
+                  Keyboard.Type_Combo ((Key => Keyboard.K_Enter,
+                                        others => False));
+                  Menu_Frame := Stage_Frames;
+               end if;
+            elsif (At_Prompt and then not Keyboard.Typing_Busy
+                   and then Stage_Frames > Menu_Frame + 40)
+              or else Stage_Frames > 600
+            then
+               Type_Text ("RANDOMIZE USR 15619: REM : " &
+                          (if Beta_Disk.Has_Boot (0) then "RUN" else "CAT")
+                          & ASCII.LF);
+               Stage := Idle;
+            end if;
          when Wait_Loaded =>
             if Config.Is_ZX81 and then Auto_Run_After_Load
               and then not Keyboard.Typing_Busy
@@ -1265,6 +1288,30 @@ package body Machine is
          Reset;
          Inject_And_Run ((1 .. 0 => 0), 0,
                          "LOAD *""m"";1;""run""" & ASCII.LF);
+         return;
+      end if;
+      if Ext = "trd" or else Ext = "scl" then
+         if not (Model in Config.ZX48 .. Config.Plus2
+                 or else Model = Config.Pentagon)
+           or else Model = Config.TC2048 or else not Beta_Disk.Enabled
+         then
+            Beta_Wanted := True;
+            Power_On ((if Model in Config.ZX48 | Config.ZX128 | Config.Plus2
+                         | Config.Pentagon then Model else Config.Pentagon),
+                      To_String (ROM_Dir_Used), Ok);
+            if not Ok or else not Beta_Disk.Enabled then
+               Ok := False;
+               return;
+            end if;
+         end if;
+         Insert_TRD (0, Path, Ok);
+         if not Ok then
+            return;
+         end if;
+         Reset;
+         Menu_Frame := -1;
+         Stage := Wait_TRDOS;
+         Stage_Frames := 0;
          return;
       end if;
       if Ext = "dsk" then

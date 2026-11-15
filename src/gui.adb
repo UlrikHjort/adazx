@@ -104,7 +104,8 @@ package body GUI is
    Item_Auto_Play : Gtk_Check_Menu_Item;
    Item_Tape_Sound : Gtk_Check_Menu_Item;
    Item_16K, Item_2000, Item_Issue2, Item_IF1 : Gtk_Check_Menu_Item;
-   Item_ZONX, Item_QS, Item_DivMMC, Item_ULAplus : Gtk_Check_Menu_Item;
+   Item_ZONX, Item_QS, Item_DivMMC, Item_ULAplus, Item_Beta :
+     Gtk_Check_Menu_Item;
    Model_Items : array (Model_Type) of Gtk_Radio_Menu_Item;
    Updating_Menu : Boolean := False;
 
@@ -169,6 +170,13 @@ package body GUI is
              then " M2: " & Short (Machine.Microdrive_Name (2)) else "") &
             (if Machine.Microdrive_Active then " [*]" else " [ ]")
           else "") &
+         (if Machine.Beta_Fitted
+          then "  |  TR-DOS A: " & (if Machine.TRD_Name (0) = "" then "-"
+                                    else Short (Machine.TRD_Name (0))) &
+            (if Machine.TRD_Name (1) /= ""
+             then " B: " & Short (Machine.TRD_Name (1)) else "") &
+            (if Machine.TRD_Active then " [*]" else " [ ]")
+          else "") &
          (if Machine.DivMMC_Fitted
           then "  |  SD: " & (if Machine.SD_Name = "" then "-"
                               else Short (Machine.SD_Name)) &
@@ -198,6 +206,7 @@ package body GUI is
       Item_Issue2.Set_Active (Machine.Issue_2);
       Item_IF1.Set_Active (Machine.Interface_1_Fitted);
       Item_DivMMC.Set_Active (Machine.DivMMC_Fitted);
+      Item_Beta.Set_Active (Machine.Beta_Fitted);
       Item_ULAplus.Set_Active (Config.ULAplus);
       Model_Items (Machine.Model).Set_Active (True);
       Updating_Menu := False;
@@ -346,7 +355,7 @@ package body GUI is
    end Choose_File;
 
    All_Types : constant Ext_List :=
-     ("tap", "tzx", "dsk", "mdr", "z80", "szx", "sna", "azx", "rzx", "p  ", "81 ", "o  ", "80 ",
+     ("tap", "tzx", "dsk", "trd", "scl", "mdr", "z80", "szx", "sna", "azx", "rzx", "p  ", "81 ", "o  ", "80 ",
       "scr", "bas", "asm");
    Tape_Types : constant Ext_List := ("tap", "tzx", "p  ", "81 ", "o  ");
    Snap_Types : constant Ext_List := ("z80", "szx", "sna", "azx", "rzx");
@@ -614,6 +623,80 @@ package body GUI is
          Update_Status;
       end if;
    end On_DivMMC;
+
+   procedure Insert_TRD (Drive : Natural) is
+      Path : constant String :=
+        Choose_File ("Insert TR-DOS disc in drive " &
+                     (if Drive = 0 then "A" else "B"), ("trd", "scl"),
+                     "TR-DOS discs (trd, scl)");
+      Ok : Boolean;
+   begin
+      if Path /= "" then
+         if not Machine.Beta_Fitted then
+            Message ("Fit the Beta 128 interface first (Machine menu; " &
+                     "the Pentagon has it built in).");
+            return;
+         end if;
+         Machine.Insert_TRD (Drive, Path, Ok);
+         if not Ok then
+            Message ("Cannot use " & Path & ASCII.LF & Machine.Error_Message);
+         end if;
+         Update_Status;
+      end if;
+   end Insert_TRD;
+
+   procedure On_TRD_A (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+   begin
+      Insert_TRD (0);
+   end On_TRD_A;
+
+   procedure On_TRD_B (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+   begin
+      Insert_TRD (1);
+   end On_TRD_B;
+
+   procedure On_TRD_Eject (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+   begin
+      Machine.Eject_TRD (0);
+      Machine.Eject_TRD (1);
+      Update_Status;
+   end On_TRD_Eject;
+
+   procedure On_New_TRD (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+      Path : constant String :=
+        Choose_Save_File ("Create a blank TR-DOS disc", "blank.trd");
+      Ok : Boolean;
+   begin
+      if Path /= "" then
+         Machine.Create_TRD (Path, Ok);
+         if Ok and then Machine.Beta_Fitted then
+            Machine.Insert_TRD (0, Path, Ok);
+         end if;
+         if not Ok then
+            Message ("Could not create " & Path);
+         end if;
+         Update_Status;
+      end if;
+   end On_New_TRD;
+
+   procedure On_Beta (Item : access Gtk_Check_Menu_Item_Record'Class) is
+   begin
+      if not Updating_Menu then
+         Machine.Set_Beta (Item.Get_Active);
+         if Item.Get_Active and then not Machine.Beta_Fitted
+           and then Machine.Model in Config.ZX48 .. Config.Plus2
+         then
+            Message ("Cannot fit the Beta 128:" & ASCII.LF &
+                     Machine.Error_Message);
+         end if;
+         Sync_Menu;
+         Update_Status;
+      end if;
+   end On_Beta;
 
    procedure On_ULAplus (Item : access Gtk_Check_Menu_Item_Record'Class) is
    begin
@@ -925,6 +1008,7 @@ package body GUI is
       Settings.Set ("interface1", Interface_1.Enabled);
       Settings.Set ("divmmc", DivMMC.Enabled);
       Settings.Set ("ulaplus", Config.ULAplus);
+      Settings.Set ("beta128", Machine.Beta_Wanted);
       Settings.Set ("sdcard", Machine.SD_Name);
       Settings.Set ("lastdir", To_String (Last_Dir));
       declare
@@ -1419,6 +1503,9 @@ package body GUI is
       if not Config.ULAplus then
          Config.ULAplus := Settings.Get ("ulaplus", False);
       end if;
+      if not Machine.Beta_Wanted then
+         Machine.Beta_Wanted := Settings.Get ("beta128", False);
+      end if;
       if Machine.SD_Name = "" then
          declare
             P : constant String := Settings.Get ("sdcard", "");
@@ -1480,6 +1567,11 @@ package body GUI is
       Add_Item (M_File, "Insert Microdrive cartridge 2...", On_MDR_2'Access);
       Add_Item (M_File, "Eject the Microdrive cartridges", On_MDR_Eject'Access);
       Add_Item (M_File, "New blank Microdrive cartridge...", On_New_MDR'Access);
+      Add_Item (M_File, "Insert _TR-DOS disc in drive A (.trd / .scl)...",
+                On_TRD_A'Access);
+      Add_Item (M_File, "Insert TR-DOS disc in drive B...", On_TRD_B'Access);
+      Add_Item (M_File, "Eject the TR-DOS discs", On_TRD_Eject'Access);
+      Add_Item (M_File, "New blank TR-DOS disc...", On_New_TRD'Access);
       Add_Item (M_File, "Insert _SD card image (DivMMC)...",
                 On_SD_Insert'Access);
       Add_Item (M_File, "SD card from a _folder (DivMMC)...",
@@ -1526,6 +1618,8 @@ package body GUI is
                  Item_IF1, On_IF1'Access);
       Add_Check (M_Machine, "_DivMMC with esxDOS (SD card; NMI = browser)",
                  Item_DivMMC, On_DivMMC'Access);
+      Add_Check (M_Machine, "_Beta 128 disk interface (TR-DOS; 48K / 128K)",
+                 Item_Beta, On_Beta'Access);
       Add_Check (M_Machine, "ULA_plus 64-colour palette", Item_ULAplus,
                  On_ULAplus'Access);
       Add_Separator (M_Machine);

@@ -1,3 +1,4 @@
+with Ada.Exceptions;
 -- ***************************************************************************
 --                             AdaZX - Beta_Disk
 --
@@ -55,6 +56,16 @@ package body Beta_Disk is
    end record;
 
    Drives : array (Drive_Number) of Disc;
+
+   --  The sector IDs (C H R N) a Write Track put on a track, returned by
+   --  Read Address (TR-DOS's FORMAT tells one side from two this way);
+   --  tracks never formatted here give (cylinder, side, sector, 1)
+   type ID_List is array (0 .. 15) of Byte_Array (0 .. 3);
+   type Track_IDs is record
+      Count : Natural := 0;
+      IDs : ID_List;
+   end record;
+   Written_IDs : array (Drive_Number, 0 .. 83, 0 .. 1) of Track_IDs;
    Err : Unbounded_String;
    Used : Boolean := False;
 
@@ -74,6 +85,8 @@ package body Beta_Disk is
    Buffer : Byte_Array (0 .. 6_399);
    Pos, Len : Natural := 0;
    Multi : Boolean := False;
+   Cmd_Cycle : Long_Long_Integer := 0;   --  when the command started
+   Now : Long_Long_Integer := 0;
 
    Index_Period : constant := 700_000;   --  300 rpm at 3.5 MHz
    Index_Width : constant := 14_000;
@@ -301,6 +314,11 @@ package body Beta_Disk is
          D.Data (0 .. F'Length - 1) := F;
       end if;
       Eject (Drive);
+      for C in 0 .. 83 loop
+         for S in 0 .. 1 loop
+            Written_IDs (Drive, C, S).Count := 0;
+         end loop;
+      end loop;
       D.Present := True;
       D.Path := To_Unbounded_String (Path);
       D.Head := Drives (Drive).Head;
@@ -331,6 +349,28 @@ package body Beta_Disk is
       when Ada.IO_Exceptions.Name_Error | Ada.IO_Exceptions.Use_Error =>
          Err := To_Unbounded_String ("cannot write " & To_String (D.Path));
    end Flush;
+
+   function Has_Boot (Drive : Drive_Number) return Boolean is
+      D : Disc renames Drives (Drive);
+      Boot : constant String := "boot    B";
+   begin
+      if not D.Present then
+         return False;
+      end if;
+      for K in 0 .. 127 loop
+         declare
+            O : constant Natural := K * 16;
+         begin
+            exit when D.Data (O) = 0;           --  end of the catalogue
+            if (for all I in 0 .. 8 =>
+                  D.Data (O + I) = Character'Pos (Boot (I + 1)))
+            then
+               return True;
+            end if;
+         end;
+      end loop;
+      return False;
+   end Has_Boot;
 
    procedure Flush_All is
    begin
@@ -367,8 +407,10 @@ package body Beta_Disk is
       end;
       Ok := True;
    exception
-      when Ada.IO_Exceptions.Name_Error | Ada.IO_Exceptions.Use_Error =>
-         Err := To_Unbounded_String ("cannot write " & Path);
+      when E : Ada.IO_Exceptions.Name_Error | Ada.IO_Exceptions.Use_Error =>
+         Err := To_Unbounded_String
+           ("cannot write " & Path & ": " &
+            Ada.Exceptions.Exception_Message (E));
          Ok := False;
    end Create;
 
@@ -425,10 +467,18 @@ package body Beta_Disk is
       D : Disc renames Drives (Cur);
       I : Natural := 1;
       Pending : Integer := -1;
+      T : Track_IDs renames Written_IDs (Cur, Natural'Min (D.Head, 83), Side);
    begin
+      if Len > 0 then
+         T.Count := 0;
+      end if;
       while I + 4 < Len loop
          if Buffer (I) = 16#FE# and then Buffer (I - 1) = 16#F5# then
             Pending := Integer (Buffer (I + 3));
+            if T.Count < 16 then
+               T.IDs (T.Count) := Buffer (I + 1 .. I + 4);
+               T.Count := T.Count + 1;
+            end if;
             I := I + 5;
          elsif Buffer (I) = 16#FB# and then Buffer (I - 1) = 16#F5#
            and then Pending >= 0
@@ -455,6 +505,7 @@ package body Beta_Disk is
       D : Disc renames Drives (Cur);
    begin
       Cmd := V;
+      Cmd_Cycle := Now;
       INTRQ := False;
       if (V and 16#F0#) = 16#D0# then              --  Force Interrupt
          Busy := False;
@@ -539,9 +590,19 @@ package body Beta_Disk is
                DRQ := True;
             end if;
          when 16#C# =>                              --  Read Address
-            Buffer (0 .. 5) := (Byte (D.Head), Byte (Side), Byte (Next_ID),
-                                1, 0, 0);
-            Sector_R := Byte (D.Head);
+            declare
+               T : Track_IDs renames
+                 Written_IDs (Cur, Natural'Min (D.Head, 83), Side);
+            begin
+               if T.Count > 0 then
+                  Buffer (0 .. 3) := T.IDs ((Next_ID - 1) mod T.Count);
+               else
+                  Buffer (0 .. 3) := (Byte (D.Head), Byte (Side),
+                                      Byte (Next_ID), 1);
+               end if;
+               Buffer (4 .. 5) := (0, 0);
+               Sector_R := Buffer (0);
+            end;
             Next_ID := Next_ID mod Sectors + 1;
             Pos := 0;
             Len := 6;
@@ -669,8 +730,22 @@ package body Beta_Disk is
      (Enabled and then Active
       and then Lo (Port) in 16#1F# | 16#3F# | 16#5F# | 16#7F# | 16#FF#);
 
+   --  Write Track ends at the next index pulse, with the data written so
+   --  far (TR-DOS starts one at boot without writing anything)
+   procedure Check_Track_End (Cycle : Long_Long_Integer) is
+   begin
+      if Mode = Writing_Track and then Cycle - Cmd_Cycle >= Index_Period then
+         Lost := Pos < Len;
+         Len := Pos;
+         Store_Track;
+         Finish;
+      end if;
+   end Check_Track_End;
+
    function Port_In (Port : Word; Cycle : Long_Long_Integer) return Byte is
    begin
+      Now := Cycle;
+      Check_Track_End (Cycle);
       case Lo (Port) is
          when 16#1F# =>
             INTRQ := False;
@@ -686,8 +761,9 @@ package body Beta_Disk is
 
    procedure Port_Out (Port : Word; Value : Byte; Cycle : Long_Long_Integer)
    is
-      pragma Unreferenced (Cycle);
    begin
+      Now := Cycle;
+      Check_Track_End (Cycle);
       case Lo (Port) is
          when 16#1F# => Command (Value);
          when 16#3F# => Track_R := Value;

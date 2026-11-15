@@ -64,6 +64,8 @@ package Beta_Disk is
    function Name (Drive : Drive_Number) return String;
    procedure Create (Path : String; Ok : out Boolean);
    --  A blank formatted disc (80 tracks, 2 sides)
+   function Has_Boot (Drive : Drive_Number) return Boolean;
+   --  The disc has a BASIC program called "boot" (what RUN starts)
    procedure Flush_All;
    function Error_Message return String;
    function Activity return Boolean;    --  used lately (cleared by reading)

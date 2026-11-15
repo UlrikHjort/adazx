@@ -194,4 +194,24 @@ fi
 bin/adazx --ulaplus --headless 400 --png "$T/up.png" tests/ulaplus.asm > /dev/null
 echo "$(python3 tests/png_runs.py "$T/up.png" pixel 300 300) $(python3 tests/png_runs.py "$T/up.png" pixel 10 10)" > "$T/up.out"
 check "ULAplus palette (paper and border)" "$T/up.out" "^FF0000 0000FF$"
+# TR-DOS (Beta 128; when roms/trdos.rom exists): a new disc, SAVE "boot"
+# from BASIC, autostart of the .trd and of an .scl made from it, FORMAT
+if [ -f roms/trdos.rom ]; then
+  rm -f "$T/boot.trd"
+  bin/adazx --beta --new-trd "$T/boot.trd" --headless 700 --png "$T/x.png" \
+    --type-at 200 '10 PRINT "BOOTED FROM TR-DOS"\n' \
+    --type-at 300 'RANDOMIZE USR 15619: REM : SAVE "boot"\n' > /dev/null
+  python3 tests/trd2scl.py "$T/boot.trd" "$T/boot.scl"
+  bin/adazx --pentagon --headless 1500 --png "$T/x.png" --screen "$T/boot.trd" > "$T/trd.out"
+  check "TR-DOS: .trd boots on the Pentagon" "$T/trd.out" "^BOOTED FROM TR-DOS"
+  bin/adazx --48 --headless 1500 --png "$T/x.png" --screen "$T/boot.scl" > "$T/scl.out"
+  check "TR-DOS: .scl boots on a 48K with the Beta 128" "$T/scl.out" "^BOOTED FROM TR-DOS"
+  cp "$T/boot.trd" "$T/fmt.trd"
+  bin/adazx --48 --trd "$T/fmt.trd" --headless 9000 --png "$T/x.png" --screen \
+    --type-at 100 'RANDOMIZE USR 15619: REM : FORMAT "fresh"\n' \
+    --type-at 8000 'RANDOMIZE USR 15619: REM : CAT\n' > "$T/fmt.out"
+  check "TR-DOS: FORMAT (80 tracks, 2 sides)" "$T/fmt.out" "^2544 Free"
+else
+  echo "skip TR-DOS (no roms/trdos.rom)"
+fi
 exit $fail
