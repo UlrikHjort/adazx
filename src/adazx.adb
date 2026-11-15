@@ -35,6 +35,9 @@
 --    --real-tape        no flash loading: load tapes in real time
 --    --attach FILE      insert a tape without starting it
 --    --disc FILE        insert a .dsk in drive A of the +3
+--    --if1              fit the Interface 1 (48K / 128K)
+--    --mdr FILE         Interface 1 with the .mdr cartridge in Microdrive 1
+--    --new-mdr FILE     create a blank Microdrive cartridge and exit
 --    --new-disc FILE    create a blank, formatted +3 .dsk and exit
 --    --headless N       run N frames without GUI, then save a screenshot
 --    --png FILE         screenshot file for headless mode (default shot.png)
@@ -71,6 +74,7 @@ with GUI;
 with Basic;
 with Asm;
 with Monitor_Commands;
+with Interface_1;
 
 procedure AdaZX is
    Model    : Machine.Model_Type := Machine.ZX48;
@@ -89,6 +93,7 @@ procedure AdaZX is
    Monitor_Cmds : Unbounded_String;
    Record_RZX : Unbounded_String;
    Disc_A : Unbounded_String;
+   MDR : Unbounded_String;
    type Timed_Text is record
       Frame : Natural := 0;
       Text  : Unbounded_String;
@@ -197,6 +202,15 @@ begin
             Save_Snap := To_Unbounded_String (Next);
          elsif A = "--load-snapshot" then
             Load_Snap := To_Unbounded_String (Next);
+         elsif A = "--if1" then
+            Interface_1.Enabled := True;
+         elsif A = "--mdr" then
+            MDR := To_Unbounded_String (Next);
+            Interface_1.Enabled := True;
+         elsif A = "--new-mdr" then
+            Machine.Create_Microdrive (Next, Ok);
+            Set_Exit_Status (if Ok then 0 else 1);
+            return;
          elsif A = "--disc" then
             Disc_A := To_Unbounded_String (Next);
          elsif A = "--new-disc" then
@@ -273,6 +287,13 @@ begin
       end if;
       if Length (Wav) > 0 then
          Sound.Sink := Wav_Sink.Push'Access;
+      end if;
+      if Length (MDR) > 0 then
+         Machine.Insert_Microdrive (1, To_String (MDR), Ok);
+         if not Ok then
+            Put_Line ("cannot insert " & To_String (MDR) & ": " &
+                        Machine.Error_Message);
+         end if;
       end if;
       if Length (Disc_A) > 0 then
          Machine.Insert_Disc (To_String (Disc_A), Ok);

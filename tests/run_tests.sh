@@ -79,6 +79,16 @@ bin/adazx --plus3 --disc "$T/d.dsk" --headless 600 --png "$T/x.png" --screen "$T
 check "+3 disc: SAVE and CAT" "$T/cat.out" "DISK    .      1K"
 bin/adazx --headless 700 --png "$T/x.png" --screen "$T/d.dsk" > "$T/boot.out"
 check "+3 disc: boot with the Loader" "$T/boot.out" "BOOTED42"
+# Interface 1: FORMAT a blank cartridge, SAVE, CAT; boot with RUN
+rm -f "$T/m.mdr"
+bin/adazx --new-mdr "$T/m.mdr"
+bin/adazx --48 --mdr "$T/m.mdr" --headless 3000 --png "$T/x.png" --screen \
+  --type 'FORMAT "m";1;"adazx"\n' \
+  --type-at 1700 '10 PRINT "MICRODRIVE";6*7\nSAVE *"m";1;"run" LINE 10\n' \
+  --type-at 2500 'CAT 1\n' > "$T/mdr.out"
+check "Interface 1: FORMAT, SAVE, CAT" "$T/mdr.out" "^run"
+bin/adazx --headless 1200 --png "$T/x.png" --screen "$T/m.mdr" > "$T/mdrrun.out"
+check "Interface 1: autostart loads \"run\"" "$T/mdrrun.out" "MICRODRIVE42"
 # ZX81: display, typing, LOAD of .p
 bin/adazx --zx81 --headless 900 --png "$T/h.png" --screen \
   --type-at 200 '10 PRINT "ZX81";2**10\nRUN\n' > "$T/81.out"

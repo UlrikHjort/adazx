@@ -41,6 +41,7 @@ with Keyboard;
 use type Keyboard.Joy_Type;
 with Tape;
 with DSK;
+with Interface_1;
 with FDC765;
 with Disasm;
 with Typist;
@@ -229,7 +230,35 @@ package body Machine is
    RZX_Fetches : Natural := 0;    --  opcode fetches in this frame (RZX)
    RZX_On : Boolean := False;     --  playing or recording
 
+   function Fetch_Byte (Addr : Word) return Byte;
+
    function Bus_Fetch (Addr : Word) return Byte is
+   begin
+      --  Interface 1: shadow ROM in at &0008 / &1708, out after &0700
+      if Interface_1.Enabled and then Model in Config.ZX48 .. Config.Plus2
+      then
+         if not Interface_1.Paged and then (Addr = 16#0008# or else
+                                            Addr = 16#1708#)
+           and then Memory.Current_ROM = Memory.Basic48_ROM
+         then
+            Interface_1.Paged := True;
+         elsif Interface_1.Paged and then Addr = 16#0700# then
+            declare
+               V : constant Byte := Memory.Read (Addr);
+            begin
+               Interface_1.Paged := False;
+               Last_M1_End := T;
+               if RZX_On then
+                  RZX_Fetches := RZX_Fetches + 1;
+               end if;
+               return V;
+            end;
+         end if;
+      end if;
+      return Fetch_Byte (Addr);
+   end Bus_Fetch;
+
+   function Fetch_Byte (Addr : Word) return Byte is
       V : constant Byte := Memory.Read (Addr);
    begin
       Last_M1_End := T;
@@ -243,7 +272,7 @@ package body Machine is
          return 0;                  --  the ULA puts a NOP on the bus
       end if;
       return V;
-   end Bus_Fetch;
+   end Fetch_Byte;
 
    function Contend (Addr : Word) return Natural is
      (if Memory.Contended (Addr) and then Model /= Config.ZX81
@@ -308,7 +337,11 @@ package body Machine is
          return V;
       end if;
       IO_Pre (Port);
-      if (Port and 1) = 0 then
+      if Interface_1.Port_Selected (Port)
+        and then Model in Config.ZX48 .. Config.Plus2
+      then
+         V := Interface_1.Port_In (Port);
+      elsif (Port and 1) = 0 then
          V := Keyboard.Read_Rows (Hi (Port)) or 16#A0# or Ear_Bit;
       elsif (Port and 16#E0#) = 0
         and then Keyboard.Joystick = Keyboard.Kempston
@@ -350,6 +383,11 @@ package body Machine is
          return;
       end if;
       IO_Pre (Port);
+      if Interface_1.Port_Selected (Port)
+        and then Model in Config.ZX48 .. Config.Plus2
+      then
+         Interface_1.Port_Out (Port, Value);
+      end if;
       if (Port and 1) = 0 then
          ULA.Set_Border (Natural (Value and 7), T);
          Sound.Set_Beeper
@@ -457,6 +495,7 @@ package body Machine is
       T := 0;
       AY.Reset;
       FDC765.Reset;
+      Interface_1.Reset;
       FDC765.Motor := False;
       Restart_Frame_State;
       Last_FE := 0;
@@ -503,6 +542,20 @@ package body Machine is
             end loop;
          when Config.ZX81 => Load_ROM ("zx81.rom", 0, 16#2000#, Ok);
       end case;
+      if Interface_1.Enabled and then not Interface_1.ROM_Loaded then
+         declare
+            P : constant String := Find_ROM ("if1-2.rom");
+            Ok2 : Boolean := False;
+         begin
+            if P /= "" then
+               Interface_1.Load_ROM (P, Ok2);
+            end if;
+            if not Ok2 then
+               Append (Err, "missing ROM if1-2.rom (Interface 1)" & ASCII.LF);
+               Interface_1.Enabled := False;
+            end if;
+         end;
+      end if;
       Tape.On_Edge := Tape_Edge'Access;
       Powered := True;
       Reset;
@@ -879,6 +932,28 @@ package body Machine is
          Start_Source (Path, Ok);
          return;
       end if;
+      if Ext = "mdr" then
+         --  Interface 1: load "run" from Microdrive 1 (it starts itself
+         --  when it was saved with LINE)
+         if Model not in Config.ZX48 .. Config.Plus2
+           or else not Interface_1.Enabled
+         then
+            Interface_1.Enabled := True;
+            Power_On ((if Model in Config.ZX48 .. Config.Plus2 then Model
+                       else Config.ZX48), To_String (ROM_Dir_Used), Ok);
+            if not Ok then
+               return;
+            end if;
+         end if;
+         Insert_Microdrive (1, Path, Ok);
+         if not Ok then
+            return;
+         end if;
+         Reset;
+         Inject_And_Run ((1 .. 0 => 0), 0,
+                         "LOAD *""m"";1;""run""" & ASCII.LF);
+         return;
+      end if;
       if Ext = "dsk" then
          if Model /= Config.Plus3 then
             Power_On (Config.Plus3, To_String (ROM_Dir_Used), Ok);
@@ -998,6 +1073,7 @@ package body Machine is
    begin
       if Memory.Current_ROM /= Memory.Basic48_ROM
         or else Memory.Special_Paging
+        or else Interface_1.Paged       --  the shadow ROM is not BASIC's
       then
          return;
       end if;
@@ -1575,6 +1651,7 @@ package body Machine is
         " IM" & Integer'Image (CPU.IM) &
         (if CPU.IFF1 then " EI" else " DI") &
         (if CPU.Halted then " HALT" else "") &
+        (if Interface_1.Paged then " IF1" else "") &
         "  " & Flags_Text & "  T=" & Integer'Image (T);
    end Register_Text;
 
@@ -1703,7 +1780,48 @@ package body Machine is
    procedure Shutdown is
    begin
       DSK.Flush_All;
+      Interface_1.Flush_All;
    end Shutdown;
+
+   procedure Set_Interface_1 (On : Boolean) is
+      Ok : Boolean;
+   begin
+      Interface_1.Enabled := On;
+      if Powered then
+         Power_On (Model, To_String (ROM_Dir_Used), Ok);
+      end if;
+   end Set_Interface_1;
+
+   function Interface_1_Fitted return Boolean is
+     (Interface_1.Enabled and then Model in Config.ZX48 .. Config.Plus2);
+
+   procedure Insert_Microdrive (Drive : Positive; Path : String;
+                                Ok : out Boolean) is
+   begin
+      Interface_1.Insert (Interface_1.Drive_Number ((Drive - 1) mod 8 + 1),
+                          Path, Ok);
+      if not Ok then
+         Err := To_Unbounded_String (Interface_1.Error_Message);
+      end if;
+   end Insert_Microdrive;
+
+   procedure Eject_Microdrive (Drive : Positive) is
+   begin
+      Interface_1.Eject (Interface_1.Drive_Number ((Drive - 1) mod 8 + 1));
+   end Eject_Microdrive;
+
+   function Microdrive_Name (Drive : Positive) return String is
+     (Interface_1.Name (Interface_1.Drive_Number ((Drive - 1) mod 8 + 1)));
+
+   procedure Create_Microdrive (Path : String; Ok : out Boolean) is
+   begin
+      Interface_1.Create (Path, Ok);
+      if not Ok then
+         Err := To_Unbounded_String (Interface_1.Error_Message);
+      end if;
+   end Create_Microdrive;
+
+   function Microdrive_Active return Boolean is (Interface_1.Motor_On);
 
    procedure Insert_Disc (Path : String; Ok : out Boolean;
                           Drive : Natural := 0) is

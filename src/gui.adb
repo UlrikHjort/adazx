@@ -78,6 +78,7 @@ with Forge;
 with Settings;
 with Host_Joystick;
 with Tape;
+with Interface_1;
 
 package body GUI is
 
@@ -100,7 +101,7 @@ package body GUI is
    Item_Flash   : Gtk_Check_Menu_Item;
    Item_Auto_Play : Gtk_Check_Menu_Item;
    Item_Tape_Sound : Gtk_Check_Menu_Item;
-   Item_16K, Item_2000, Item_Issue2 : Gtk_Check_Menu_Item;
+   Item_16K, Item_2000, Item_Issue2, Item_IF1 : Gtk_Check_Menu_Item;
    Model_Items : array (Model_Type) of Gtk_Radio_Menu_Item;
    Updating_Menu : Boolean := False;
 
@@ -158,6 +159,13 @@ package body GUI is
              then "  B: " & Short (Machine.Disc_Name (1)) else "") &
             (if Machine.Disc_Active then " [*]" else " [ ]")
           else "") &
+         (if Machine.Interface_1_Fitted
+          then "  |  IF1 M1: " & (if Machine.Microdrive_Name (1) = "" then "-"
+                                  else Short (Machine.Microdrive_Name (1))) &
+            (if Machine.Microdrive_Name (2) /= ""
+             then " M2: " & Short (Machine.Microdrive_Name (2)) else "") &
+            (if Machine.Microdrive_Active then " [*]" else " [ ]")
+          else "") &
          (if Machine.Model /= Config.ZX81
           then "  |  joystick " & Joystick_Name else "") &
          (if Machine.RZX_Status /= "" then "  |  " & Machine.RZX_Status
@@ -178,6 +186,7 @@ package body GUI is
       Item_16K.Set_Active (Machine.ZX81_16K);
       Item_2000.Set_Active (Machine.ZX81_RAM_2000);
       Item_Issue2.Set_Active (Machine.Issue_2);
+      Item_IF1.Set_Active (Machine.Interface_1_Fitted);
       Model_Items (Machine.Model).Set_Active (True);
       Updating_Menu := False;
       if Machine.Model /= Config.ZX81 then
@@ -325,7 +334,7 @@ package body GUI is
    end Choose_File;
 
    All_Types : constant Ext_List :=
-     ("tap", "tzx", "dsk", "z80", "szx", "sna", "azx", "rzx", "p  ", "81 ",
+     ("tap", "tzx", "dsk", "mdr", "z80", "szx", "sna", "azx", "rzx", "p  ", "81 ",
       "scr", "bas", "asm");
    Tape_Types : constant Ext_List := ("tap", "tzx", "p  ", "81 ");
    Snap_Types : constant Ext_List := ("z80", "szx", "sna", "azx", "rzx");
@@ -435,6 +444,78 @@ package body GUI is
          Update_Status;
       end if;
    end On_New_Disc;
+
+   procedure Insert_MDR (Drive : Positive) is
+      Path : constant String :=
+        Choose_File ("Insert cartridge in Microdrive" & Drive'Image,
+                     (1 => "mdr"), "Microdrive cartridges (.mdr)");
+      Ok : Boolean;
+   begin
+      if Path /= "" then
+         if not Machine.Interface_1_Fitted then
+            Message ("Fit the Interface 1 first (Machine menu; 48K / 128K).");
+            return;
+         end if;
+         Machine.Insert_Microdrive (Drive, Path, Ok);
+         if not Ok then
+            Message ("Cannot use " & Path & ASCII.LF & Machine.Error_Message);
+         end if;
+         Update_Status;
+      end if;
+   end Insert_MDR;
+
+   procedure On_MDR_1 (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+   begin
+      Insert_MDR (1);
+   end On_MDR_1;
+
+   procedure On_MDR_2 (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+   begin
+      Insert_MDR (2);
+   end On_MDR_2;
+
+   procedure On_MDR_Eject (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+   begin
+      Machine.Eject_Microdrive (1);
+      Machine.Eject_Microdrive (2);
+      Update_Status;
+   end On_MDR_Eject;
+
+   procedure On_New_MDR (Item : access Gtk_Menu_Item_Record'Class) is
+      pragma Unreferenced (Item);
+      Path : constant String :=
+        Choose_Save_File ("Create a blank Microdrive cartridge", "blank.mdr");
+      Ok : Boolean;
+   begin
+      if Path /= "" then
+         Machine.Create_Microdrive (Path, Ok);
+         if not Ok then
+            Message ("Could not create " & Path);
+         elsif Machine.Interface_1_Fitted then
+            Machine.Insert_Microdrive (1, Path, Ok);
+            Message ("Blank cartridge in Microdrive 1: FORMAT ""m"";1;""name"" "
+                     & "prepares it.");
+         end if;
+         Update_Status;
+      end if;
+   end On_New_MDR;
+
+   procedure On_IF1 (Item : access Gtk_Check_Menu_Item_Record'Class) is
+   begin
+      if not Updating_Menu then
+         Machine.Set_Interface_1 (Item.Get_Active);
+         if Item.Get_Active and then not Machine.Interface_1_Fitted
+           and then Machine.Model in Config.ZX48 .. Config.Plus2
+         then
+            Message ("Cannot fit the Interface 1:" & ASCII.LF &
+                     Machine.Error_Message);
+         end if;
+         Sync_Menu;
+      end if;
+   end On_IF1;
 
    procedure On_Play (Item : access Gtk_Menu_Item_Record'Class) is
       pragma Unreferenced (Item);
@@ -706,6 +787,7 @@ package body GUI is
       Settings.Set ("zx81_16k", Machine.ZX81_16K);
       Settings.Set ("zx81_ram2000", Machine.ZX81_RAM_2000);
       Settings.Set ("issue2", Machine.Issue_2);
+      Settings.Set ("interface1", Interface_1.Enabled);
       Settings.Set ("lastdir", To_String (Last_Dir));
       declare
          W, H : Gint;
@@ -1183,6 +1265,9 @@ package body GUI is
       Machine.ZX81_RAM_2000 :=
         Settings.Get ("zx81_ram2000", Machine.ZX81_RAM_2000);
       Machine.Issue_2 := Settings.Get ("issue2", Machine.Issue_2);
+      if not Interface_1.Enabled then
+         Interface_1.Enabled := Settings.Get ("interface1", False);
+      end if;
       Last_Dir := To_Unbounded_String (Settings.Get ("lastdir", ""));
       begin
          Keyboard.Joystick := Keyboard.Joy_Type'Value
@@ -1229,6 +1314,12 @@ package body GUI is
       Add_Item (M_File, "Eject drive B", On_Eject_B'Access);
       Add_Item (M_File, "_New blank +3 disc...", On_New_Disc'Access);
       Add_Separator (M_File);
+      Add_Item (M_File, "Insert Microdrive _cartridge 1 (.mdr)...",
+                On_MDR_1'Access);
+      Add_Item (M_File, "Insert Microdrive cartridge 2...", On_MDR_2'Access);
+      Add_Item (M_File, "Eject the Microdrive cartridges", On_MDR_Eject'Access);
+      Add_Item (M_File, "New blank Microdrive cartridge...", On_New_MDR'Access);
+      Add_Separator (M_File);
       Add_Item (M_File, "Insert _tape (.tap .tzx .p)... (Alt+T)",
                 On_Attach_Tape'Access);
       Add_Item (M_File, "_Play tape (Alt+P)", On_Play'Access);
@@ -1260,6 +1351,8 @@ package body GUI is
                  On_ZX81_Option'Access);
       Add_Check (M_Machine, "48K: issue 2 keyboard", Item_Issue2,
                  On_ZX81_Option'Access);
+      Add_Check (M_Machine, "Interface _1 with Microdrives (48K / 128K)",
+                 Item_IF1, On_IF1'Access);
       Add_Separator (M_Machine);
       Add_Item (M_Machine, "_Reset (Alt+R)", On_Reset'Access);
       Add_Item (M_Machine, "_NMI (Alt+N)", On_NMI'Access);

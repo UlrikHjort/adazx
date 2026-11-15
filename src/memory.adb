@@ -25,6 +25,7 @@
 
 with Interfaces; use Interfaces;
 with Config; use Config;
+with Interface_1;
 
 package body Memory is
 
@@ -147,6 +148,9 @@ package body Memory is
    begin
       if Model = ZX81 then
          return Store (ZX81_Offset (Addr));
+      end if;
+      if Interface_1.Paged and then Addr < 16#4000# then
+         return Interface_1.ROM_Byte (Addr);
       end if;
       return Store (Slot_Base (S (Addr)) + Natural (Addr and 16#3FFF#));
    end Read;

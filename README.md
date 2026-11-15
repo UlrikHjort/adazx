@@ -23,13 +23,13 @@ ZX81, the "Tape Loader" menu entry on the 128K models. `.bas` / `.b81`
 files are tokenised and RUN; `.asm` files are assembled and started with
 `RANDOMIZE USR` (Spectrum) or put into a REM line at 16514 (ZX81).
 
-Options: `--roms DIR`, `--disc FILE` (+3 drive A), `--1k` (ZX81 without the 16K pack), `--ram2000`
+Options: `--roms DIR`, `--disc FILE` (+3 drive A), `--if1`, `--mdr FILE` (Interface 1, cartridge in Microdrive 1), `--1k` (ZX81 without the 16K pack), `--ram2000`
 (ZX81 8K RAM at &2000), `--issue2`, `--real-tape` (no flash loading),
 `--attach FILE`, and for testing `--headless N` (run N frames, save
 `shot.png`), `--png FILE`, `--type TEXT` (`\n` = ENTER), `--type-at FRAME
 TEXT`, `--screen` (print the screen as text), `--wav FILE`, `--dump FILE`,
 `--save-tape FILE`, `--record-rzx FILE`, `--load-snapshot` / `--save-snapshot FILE`, `--break
-ADDR`, `--monitor "r;d 8000;m 5c00"`. Command-line tools: `--new-disc FILE` (blank +3 disc), `--basic SRC`
+ADDR`, `--monitor "r;d 8000;m 5c00"`. Command-line tools: `--new-disc FILE` (blank +3 disc), `--new-mdr FILE` (blank cartridge), `--basic SRC`
 (tokenise into a .tap, or a .p with `--zx81`), `--list FILE` (list the
 BASIC in a .tap / .p), `--asm SRC`.
 
@@ -46,6 +46,7 @@ the current directory, `/usr/share/spectrum-roms` and `/usr/share/fuse`.
 | +2 | `plus2-0.rom`, `plus2-1.rom` |
 | +2A / +3 | `plus3-0.rom` .. `plus3-3.rom` |
 | ZX81 | `zx81.rom` (8 KB, the "improved" version 2 ROM) |
+| Interface 1 | `if1-2.rom` (8 KB, edition 2; in the spectrum-roms package) |
 
 **Spectrum:** Amstrad allow the Spectrum ROMs to be distributed with
 emulators: *"Amstrad have kindly given their permission for the
@@ -69,6 +70,7 @@ Use a copy you are entitled to use, and do not pass it on with AdaZX.
 | Sound | Beeper and MIC, AY-3-8912 (128K models: tones, noise, envelopes), the tape signal while loading; PulseAudio, which also paces the emulation. |
 | Tape | TAP and TZX (standard, turbo, pure tone, pulse sequences, pure data, direct recording, generalized data, CSW recordings (RLE and Z-RLE), pauses, loops, jumps, stop-if-48K) played as the EAR signal in real time (turbo and custom loaders work) or flash-loaded through a ROM trap; SAVE is recorded and can be written as a .tap. |
 | Snapshots | .z80 (v1-v3), .szx (ZX-State v1.4, zlib-compressed pages) and .sna load and save; .azx (AdaZX) holds the complete state of every model, ZX81 included. RZX input recordings: playback (embedded .szx / .z80 / .sna snapshots, several parts) and recording (Machine menu or `--record-rzx FILE`). |
+| Interface 1 | Shadow ROM paged at &0008 / &1708 and out after &0700, eight Microdrives with .mdr cartridges (read-driven tape loop with GAP / SYNC as in Fuse), FORMAT / SAVE * / LOAD * / CAT, cartridges written back; blank cartridges (File menu or `--new-mdr`); a .mdr autostarts by loading "run". RS232 and network are not connected. |
 | Joysticks | Kempston, Sinclair 1 / 2, Cursor; keypad, cursor keys or a game controller. |
 | ZX81 | Display generated as on the real machine: the CPU executes the display file above 32K, the ULA turns characters into NOPs and fetches their pattern (I register, line counter), HSYNC / NMI generator / VSYNC from the ports, INT from A6 during refresh; SLOW and FAST mode, WRX hi-res (pattern from RAM via the refresh address), 1K or 16K, optional 8K RAM at &2000. .p files load through the ROM's LOAD (trap), SAVE writes a .p. |
 
@@ -113,7 +115,6 @@ Tools:
 
 ## Not (yet) emulated
 
-Interface 1 / Microdrives,
 the ZX80, ZX81 sound boards. The ZX81
 pseudo hi-res of some programs (sz81's tetris title) shows thin
 two-scanline offsets that have not been checked against a reference.
@@ -126,6 +127,7 @@ two-scanline offsets that have not been checked against a reference.
     src/memory.*       paging, contention map         src/ula.*   picture
     src/sound.*, ay.*  beeper / AY mixing              src/tape.*  TAP/TZX
     src/fdc765.*, dsk.* +3 disc controller, .dsk images
+    src/interface_1.*  Interface 1 and Microdrives
     src/p_files.*      ZX81 .p                         src/keyboard.* typist.*
     src/asm.*          assembler                       src/disasm.* monitor*.*
     src/basic.*        Sinclair BASIC                  src/tap_files.*

@@ -124,6 +124,17 @@ package Machine is
    --  A blank, formatted +3 disc image.
    function Disc_Active return Boolean;   --  the drive is working (LED)
 
+   --  Interface 1 and Microdrives (48K / 128K / +2)
+   procedure Set_Interface_1 (On : Boolean);
+   --  Fit or remove the Interface 1 (a power-on follows).
+   function Interface_1_Fitted return Boolean;
+   procedure Insert_Microdrive (Drive : Positive; Path : String;
+                                Ok : out Boolean);
+   procedure Eject_Microdrive (Drive : Positive);
+   function Microdrive_Name (Drive : Positive) return String;
+   procedure Create_Microdrive (Path : String; Ok : out Boolean);
+   function Microdrive_Active return Boolean;
+
    --  Snapshots: .z80 / .szx / .sna (Spectrum), .azx (AdaZX, all models),
    --  .rzx (an input recording: played back from its snapshot)
    procedure Save_Snapshot (Path : String; Ok : out Boolean);
