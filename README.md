@@ -3,8 +3,15 @@
 A ZX Spectrum (16K, 48K, 48K NTSC, 128K, +2, +2A, +3 with its disc drive), Pentagon 128, Timex TC2048 and TC2068, Sinclair ZX81 and ZX80
 emulator written in Ada 2012 with GtkAda, with **Forge**: a Z80 assembler
 IDE, Sinclair BASIC editor, source-level debugger and graphics editors
-around the running machine. It is the Sinclair sibling of AdaC64
-(`../c64`) and AdaBeeb (`../bbc`).
+around the running machine. It is the Sinclair sibling of AdaC64 and
+AdaBeeb.
+
+| | |
+|---|---|
+| ![48K BASIC](docs/screenshots/spectrum48.png) | ![128K menu](docs/screenshots/spectrum128.png) |
+| `examples/demo.bas` on the 48K | The 128K menu |
+| ![ZX81](docs/screenshots/zx81.png) | ![ULAplus](docs/screenshots/ulaplus.png) |
+| `examples/demo.b81` on the ZX81 | `examples/ulaplus.asm` with `--ulaplus` |
 
 ## Build and run
 
@@ -91,7 +98,7 @@ zip in `roms/` as `esxmmc.bin`, and its `SYS`, `BIN` and `TMP` folders in
 
 | Part | Notes |
 |------|-------|
-| Z80 | All documented and undocumented instructions and flags, MEMPTR and Q, IM 0/1/2, NMI, HALT. Every memory and I/O cycle happens at its own T-state, so contention is applied exactly: passes all 1356 tests of Fuse's per-cycle suite (bus events and timings identical), ZEXALL and all variants of Patrik Rak's z80test 1.2a (including the flags of interrupted LDIR / INIR, MEMPTR and CCF). |
+| Z80 | All documented and undocumented instructions and flags, MEMPTR and Q, IM 0/1/2, NMI, HALT. Every memory and I/O cycle happens at its own T-state, so contention is applied exactly: passes all 1356 tests of Fuse's per-cycle suite (bus events and timings identical; five expectations for interrupted INIR / OTIR / INDR / OTDR / CPDR updated to the real-hardware results of z80test, see `tests/z80/fuse/README`), ZEXALL and all variants of Patrik Rak's z80test 1.2a (including the flags of interrupted LDIR / INIR, MEMPTR and CCF). |
 | ULA (Spectrum) | 48K / 128K / +2A timings (69888 / 70908 T-states), memory and I/O contention, the picture drawn behind the CPU in 8-pixel steps (border and multicolour effects appear where they happen), FLASH, floating bus (48K and 128K phases checked with Richard Butler's timing tests and Ramsoft's Floating Spy; all 72 timing cases pass). |
 | Memory | 128K paging (&7FFD), +2A / +3 paging and all-RAM modes (&1FFD). |
 | +3 disc | uPD765A controller (read / write / deleted data, read track, read ID, format, seek, sense status; +3DOS polling, no terminal count) with two drives; .dsk images (standard and extended, sector status flags kept for copy protection) written back as extended DSK; blank formatted discs (File menu or `--new-disc`); a .dsk autostarts through the menu's Loader. |

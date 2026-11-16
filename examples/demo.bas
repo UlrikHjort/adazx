@@ -1,0 +1,8 @@
+10 BORDER 1: PAPER 0: INK 7: BRIGHT 1: CLS
+20 FOR i=0 TO 7: FOR j=0 TO 2: PRINT AT 1+j,4*i; PAPER i;"    ": NEXT j: NEXT i
+30 PRINT AT 5,9; INK 6;"AdaZX  emulator"
+40 PRINT AT 6,6; INK 5;"written in Ada with GtkAda"
+50 FOR r=8 TO 48 STEP 8: INK 1+r/8: CIRCLE 128,56,r: NEXT r
+60 INK 4: FOR x=0 TO 255 STEP 4: PLOT x,100+10*SIN (x/20): NEXT x
+70 PRINT AT 21,0; INK 7;"48K BASIC  -  bin/adazx demo.bas"
+80 PAUSE 0

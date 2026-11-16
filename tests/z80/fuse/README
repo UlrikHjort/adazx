@@ -77,3 +77,10 @@ dd00.in, ddfd00.in: test timings of "extended NOP" opcodes DD 00 and
 		    next opcode executes at the right time (bug fixed
 		    on 20060722).
 
+
+AdaZX change: five expected results (edb2_1 INIR, edb3_1 OTIR, edb9_2
+CPDR, edba_1 INDR, edbb_1 OTDR, each interrupted while repeating) are updated to the flags and
+MEMPTR that Patrik Rak's z80test 1.2a measures on real Z80s (the
+undocumented flags 5 / 3 from PC's high byte, H and P/V for the I/O
+blocks, MEMPTR = PC + 1; David Banks, 2018).  Fuse's 1.5 / 1.6 data has
+the older model.
