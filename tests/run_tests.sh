@@ -5,6 +5,12 @@ cd "$(dirname "$0")/.." || exit 1
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 fail=0
+have() {    # a ROM in roms/ or in the spectrum-roms package
+  [ -f "roms/$1" ] || [ -f "/usr/share/spectrum-roms/$1" ]
+}
+rom() {     # its path
+  if [ -f "roms/$1" ]; then echo "roms/$1"; else echo "/usr/share/spectrum-roms/$1"; fi
+}
 check() {   # name, command output file, expected text
   if grep -q -- "$3" "$2"; then echo "ok   $1"; else echo "FAIL $1"; fail=1; fi
 }
@@ -17,7 +23,7 @@ else
 fi
 bin/asm_test > "$T/asm.out"; check "assembler round trip" "$T/asm.out" " 0 failures"
 
-if [ ! -f roms/48.rom ] || [ ! -f roms/zx81.rom ]; then
+if ! have 48.rom; then
   echo "skipping machine tests: ROMs missing (see README)"; exit $fail
 fi
 
@@ -89,6 +95,7 @@ bin/adazx --48 --mdr "$T/m.mdr" --headless 3000 --png "$T/x.png" --screen \
 check "Interface 1: FORMAT, SAVE, CAT" "$T/mdr.out" "^run"
 bin/adazx --headless 1200 --png "$T/x.png" --screen "$T/m.mdr" > "$T/mdrrun.out"
 check "Interface 1: autostart loads \"run\"" "$T/mdrrun.out" "MICRODRIVE42"
+if have zx81.rom; then
 # ZX81: display, typing, LOAD of .p
 bin/adazx --zx81 --headless 900 --png "$T/h.png" --screen \
   --type-at 200 '10 PRINT "ZX81";2**10\nRUN\n' > "$T/81.out"
@@ -99,6 +106,10 @@ check "ZX81 .p load and machine code" "$T/81p.out" "HELLO ZX81 FROM ADA"
 bin/adazx --zx81 --headless 400 --png "$T/j.png" --save-snapshot "$T/z.azx" examples/zx81hello.p > /dev/null
 bin/adazx --zx81 --headless 900 --png "$T/k.png" --screen --load-snapshot "$T/z.azx" > "$T/azx.out"
 check ".azx snapshot (ZX81)" "$T/azx.out" "HELLO ZX81 FROM ADA"
+else
+  echo "skip ZX81 (no zx81.rom)"
+fi
+if have zx80.rom; then
 # ZX80: typing (keyword keys, SHIFT operator tokens), .o build / LOAD,
 # SAVE, machine code in a REM line
 bin/adazx --zx80 --headless 1500 --png "$T/x.png" --screen \
@@ -114,6 +125,10 @@ bin/adazx --list "$T/s.o" > "$T/80s.out"
 check "ZX80 SAVE as .o" "$T/80s.out" "10 PRINT 5"
 bin/adazx --zx80 --headless 1500 --png "$T/x.png" --screen examples/zx80hello.asm > "$T/80a.out"
 check "ZX80 machine code (PRINT USR)" "$T/80a.out" "^385"
+else
+  echo "skip ZX80 (no zx80.rom)"
+fi
+if have zx81.rom; then
 # ZX81 line counter: the top-left quadrant block (CHR$ 1) is one run of
 # 4 scanlines (8 PNG rows), not split across the character row
 printf '10 PRINT CHR$ 1\n' > "$T/q.b81"
@@ -129,6 +144,9 @@ bin/adazx --zx81 --quicksilva --headless 600 --png "$T/x.png" --wav "$T/qs.wav" 
   tests/quicksilva.asm > /dev/null
 python3 tests/wav_freq.py "$T/qs.wav" > "$T/qs.out"
 check "ZX81 Quicksilva sound board (254 Hz)" "$T/qs.out" "^25[345]$"
+else
+  echo "skip ZX81 line counter and sound boards (no zx81.rom)"
+fi
 # Patrik Rak's z80test 1.2a (MIT, tests/z80test): all flags and
 # registers, MEMPTR, and flags after CCF; printed output via --print-log
 for t in z80full z80memptr z80ccf; do
@@ -146,7 +164,7 @@ check "48K timing tests (all 72 cases, floating bus)" "$T/tm.out" "^pass 7[2-9] 
 # DivMMC with esxDOS (only when roms/esxmmc.bin and roms/esxdos/ exist:
 # esxDOS is not part of AdaZX): a card built from a folder, a tape loaded
 # through esxDOS's tape emulation, a file saved to the card
-if [ -f roms/esxmmc.bin ] && [ -d roms/esxdos ]; then
+if have esxmmc.bin && [ -d roms/esxdos ]; then
   rm -rf "$T/sdf" && mkdir -p "$T/sdf/My Programs"
   printf '10 PRINT "FROM THE SD CARD"\n' > "$T/sdf/My Programs/hello.bas"
   bin/adazx --basic "$T/sdf/My Programs/hello.bas" > /dev/null
@@ -179,7 +197,7 @@ check "Pentagon 128 boots to the 128K menu" "$T/pent.out" "Pentagon 128 frames"
 check "Pentagon 128 menu" "$T/pent.out" "Tape Tester"
 # Timex TC2048 (when roms/tc2048.rom is there): 512-pixel mode (8 ink, 8
 # paper pixels per 16) and 8x1 colour attributes
-if [ -f roms/tc2048.rom ]; then
+if have tc2048.rom; then
   bin/adazx --tc2048 --headless 400 --png "$T/hires.png" tests/timex_hires.asm > /dev/null
   python3 tests/png_runs.py "$T/hires.png" row 200 > "$T/hires.out"
   check "TC2048 512-pixel mode" "$T/hires.out" "^96:8 112:8 128:8 144:8 "
@@ -196,7 +214,7 @@ echo "$(python3 tests/png_runs.py "$T/up.png" pixel 300 300) $(python3 tests/png
 check "ULAplus palette (paper and border)" "$T/up.out" "^FF0000 0000FF$"
 # TR-DOS (Beta 128; when roms/trdos.rom exists): a new disc, SAVE "boot"
 # from BASIC, autostart of the .trd and of an .scl made from it, FORMAT
-if [ -f roms/trdos.rom ]; then
+if have trdos.rom; then
   rm -f "$T/boot.trd"
   bin/adazx --beta --new-trd "$T/boot.trd" --headless 700 --png "$T/x.png" \
     --type-at 200 '10 PRINT "BOOTED FROM TR-DOS"\n' \
@@ -227,7 +245,7 @@ check "ZX Printer: the H of HELLO" "$T/lpcol.out" "^1:6$"
 bin/adazx --printer "$T/cp.png" --headless 600 --png "$T/x.png" \
   --type-at 100 'COPY\n' > "$T/cp.out"
 check "ZX Printer: COPY" "$T/cp.out" "^printer: 176 lines"
-if [ -f roms/mf128.rom ]; then
+if have mf128.rom; then
   bin/adazx --128 --multiface --headless 400 --png "$T/x.png" --screen \
     --nmi-at 250 > "$T/mf.out"
   check "Multiface 128 menu on the red button" "$T/mf.out" "MULTIFACE 128"
@@ -240,7 +258,7 @@ printf '10 FOR I=1 TO 20\n20 PRINT SIN I,SQR I,EXP (I/10)\n30 NEXT I\n' > "$T/ca
 bin/adazx --headless 900 --png "$T/x.png" --profile --disassemble 0 3fff "$T/rom.asm" \
   --entry 0 --entry 38 --entry 66 "$T/calc.bas" > /dev/null
 bin/adazx --asm "$T/rom.asm" > /dev/null
-if [ -f roms/48.rom ] && cmp -s "$T/rom.bin" roms/48.rom; then
+if have 48.rom && cmp -s "$T/rom.bin" "$(rom 48.rom)"; then
   echo "same" > "$T/rom.out"; else echo "different" > "$T/rom.out"; fi
 check "disassembled 48K ROM re-assembles identically" "$T/rom.out" "^same$"
 # 16K (RAMTOP 32767), NTSC 48K (60 Hz frames), TC2068 (BASIC, AY on &F5 /
@@ -251,7 +269,7 @@ check "16K Spectrum (RAMTOP)" "$T/16k.out" "^32767"
 bin/adazx --48ntsc --headless 400 --png "$T/x.png" --screen \
   --type-at 200 'PRINT "NTSC OK"\n' > "$T/ntsc.out"
 check "48K NTSC runs BASIC" "$T/ntsc.out" "^NTSC OK"
-if [ -f roms/tc2068-0.rom ] && [ -f roms/tc2068-1.rom ]; then
+if have tc2068-0.rom && have tc2068-1.rom; then
   bin/adazx --tc2068 --headless 1000 --png "$T/x.png" --wav "$T/tc.wav" \
     tests/tc2068_ay.asm > /dev/null
   python3 tests/wav_freq.py "$T/tc.wav" > "$T/tc.out"
