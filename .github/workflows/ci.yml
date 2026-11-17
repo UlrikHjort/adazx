@@ -1,0 +1,29 @@
+# Build AdaZX and run its tests. The Spectrum ROMs come from Ubuntu's
+# spectrum-roms package (multiverse; Amstrad allow their distribution with
+# emulators); tests for machines whose ROMs are not in it (ZX81, ZX80,
+# TC2068, TR-DOS, Multiface, esxDOS) are skipped.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GNAT, GtkAda and the Spectrum ROMs
+        run: |
+          sudo add-apt-repository -y multiverse
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gnat gprbuild libgtkada20-dev libgtksourceview-4-0 \
+            libpulse-dev zlib1g-dev python3 curl spectrum-roms
+
+      - name: Build
+        run: make
+
+      - name: Tests
+        run: make tests
