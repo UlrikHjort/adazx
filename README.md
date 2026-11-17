@@ -1,5 +1,7 @@
 # AdaZX
 
+[![CI](https://github.com/UlrikHjort/adazx/actions/workflows/ci.yml/badge.svg)](https://github.com/UlrikHjort/adazx/actions/workflows/ci.yml)
+
 A ZX Spectrum, Pentagon, Timex, ZX81 and ZX80 emulator written in Ada 2012
 with GtkAda, with **Forge**: a Z80 assembler IDE, Sinclair BASIC editor,
 source-level debugger, profiler, disassembler and graphics editors around
