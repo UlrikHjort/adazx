@@ -156,11 +156,19 @@ for t in z80full z80memptr z80ccf; do
 done
 # Richard Butler's 48K timing tests (tests/timing): instruction timings
 # with and without contention, and the floating bus (35 - 37)
-bin/adazx --headless 20000 --png "$T/x.png" --print-log --type-at 300 '\n' \
-  --type-at 12000 ' ' --type-at 13000 ' ' --type-at 14000 ' ' \
-  --type-at 15000 ' ' tests/timing/timing_tests_48k_v1.0.z80 > "$T/tm.log"
-echo "pass $(grep -c Pass "$T/tm.log") fail $(grep -c Fail "$T/tm.log")" > "$T/tm.out"
-check "48K timing tests (all 72 cases, floating bus)" "$T/tm.out" "^pass 7[2-9] fail 0$"
+TIMING=tests/timing/timing_tests_48k_v1.0.z80
+if [ ! -f "$TIMING" ] && command -v curl > /dev/null; then
+  curl -sSfL -m 60 -o "$TIMING" "https://raw.githubusercontent.com/MrKWatkins/EmulatorTestSuites/0444fa71428caf8038a4f3a8814dd2634432f811/src/MrKWatkins.EmulatorTestSuites.ZXSpectrum/Timing/timing_tests_48k_v1.0.z80" || rm -f "$TIMING"
+fi
+if [ -f "$TIMING" ]; then
+  bin/adazx --headless 20000 --png "$T/x.png" --print-log --type-at 300 '\n' \
+    --type-at 12000 ' ' --type-at 13000 ' ' --type-at 14000 ' ' \
+    --type-at 15000 ' ' tests/timing/timing_tests_48k_v1.0.z80 > "$T/tm.log"
+  echo "pass $(grep -c Pass "$T/tm.log") fail $(grep -c Fail "$T/tm.log")" > "$T/tm.out"
+  check "48K timing tests (all 72 cases, floating bus)" "$T/tm.out" "^pass 7[2-9] fail 0$"
+else
+  echo "skip 48K timing tests (could not download them)"
+fi
 # DivMMC with esxDOS (only when roms/esxmmc.bin and roms/esxdos/ exist:
 # esxDOS is not part of AdaZX): a card built from a folder, a tape loaded
 # through esxDOS's tape emulation, a file saved to the card

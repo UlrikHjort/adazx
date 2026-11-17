@@ -1,4 +1,6 @@
-timing_tests_48k_v1.0.z80: Richard Butler's 48K ZX Spectrum timing test
+timing_tests_48k_v1.0.z80 (downloaded by run_tests.sh, not part of the
+repository: it is GPL-3.0 object code whose source is not published):
+Richard Butler's 48K ZX Spectrum timing test
 suite (https://www.zxspectrum4.net/op_timing.php), as redistributed in
 MrKWatkins' EmulatorTestSuites (https://github.com/MrKWatkins/EmulatorTestSuites,
 GPL-3.0).  34 instruction timing groups, uncontended and contended, and

@@ -32,4 +32,5 @@ examples/*.bin
 examples/*.o
 # test fixtures that are part of the repository (see their README / LICENSE)
 !tests/z80test/*.tap
-!tests/timing/*.z80
+!tests/z80/zex*.z80
+tests/timing/*.z80
