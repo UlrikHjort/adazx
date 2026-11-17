@@ -171,6 +171,58 @@ procedure AdaZX is
       return "roms";
    end Default_ROM_Dir;
 
+   Usage : constant String :=
+     "Usage: adazx [options] [file]" & ASCII.LF &
+     "  file: .tap .tzx .z80 .szx .sna .azx .rzx .dsk .mdr .trd .scl .p .81" & ASCII.LF &
+     "        .o .80 .scr .bas .b81 .b80 .asm (started the way a user would)" & ASCII.LF &
+     "" & ASCII.LF &
+     "Machine" & ASCII.LF &
+     "  --48 --16 --48ntsc --128 --plus2 --plus2a --plus3 --pentagon" & ASCII.LF &
+     "  --tc2048 --tc2068 --zx81 --zx80     the model (default: the last used)" & ASCII.LF &
+     "  --roms DIR          ROM folder (default: roms/ next to the program)" & ASCII.LF &
+     "  --issue2            48K issue 2 keyboard (EAR bit)" & ASCII.LF &
+     "  --1k, --ram2000     ZX81 / ZX80 without the 16K pack, ZX81 8K at &2000" & ASCII.LF &
+     "  --real-tape         load tapes in real time (no flash loading)" & ASCII.LF &
+     "" & ASCII.LF &
+     "Add-ons" & ASCII.LF &
+     "  --if1, --mdr FILE   Interface 1, a cartridge in Microdrive 1" & ASCII.LF &
+     "  --disc FILE         a .dsk in the +3's drive A" & ASCII.LF &
+     "  --beta, --trd FILE  Beta 128 (TR-DOS), a .trd / .scl in drive A" & ASCII.LF &
+     "  --divmmc, --sd FILE, --sd-dir DIR   DivMMC (esxDOS), an SD card image or" & ASCII.LF &
+     "                      a card built from a folder" & ASCII.LF &
+     "  --multiface         Multiface 128 (Alt+N / --nmi-at = the red button)" & ASCII.LF &
+     "  --mouse             Kempston mouse" & ASCII.LF &
+     "  --printer PNG       ZX Printer (headless: the paper saved as PNG)" & ASCII.LF &
+     "  --ulaplus           ULAplus palette" & ASCII.LF &
+     "  --zonx, --quicksilva  ZX81 / ZX80 AY sound board" & ASCII.LF &
+     "  --attach FILE       insert a tape without starting it" & ASCII.LF &
+     "" & ASCII.LF &
+     "Tools (no emulator window; they exit)" & ASCII.LF &
+     "  --basic SRC         tokenise BASIC into a .tap / .p / .o" & ASCII.LF &
+     "  --asm SRC           assemble Z80 source (binary, tape, labels)" & ASCII.LF &
+     "  --list FILE         list the BASIC in a .tap / .p / .o" & ASCII.LF &
+     "  --new-disc FILE, --new-mdr FILE, --new-trd FILE, --new-sd FILE" & ASCII.LF &
+     "                      blank +3 disc, cartridge, TR-DOS disc, SD card" & ASCII.LF &
+     "" & ASCII.LF &
+     "Forge" & ASCII.LF &
+     "  --forge [SRC]       open Forge (assembler IDE and debugger) with SRC" & ASCII.LF &
+     "" & ASCII.LF &
+     "Headless runs (tests and scripts)" & ASCII.LF &
+     "  --headless N        run N frames without a window, then save a picture" & ASCII.LF &
+     "  --png FILE          that picture (default shot.png)" & ASCII.LF &
+     "  --screen            print the screen as text" & ASCII.LF &
+     "  --wav FILE          record the sound" & ASCII.LF &
+     "  --print-log         echo what the 48K ROM prints" & ASCII.LF &
+     "  --type TEXT, --type-at FRAME TEXT   type at the prompt / at a frame" & ASCII.LF &
+     "                      (\n = ENTER)" & ASCII.LF &
+     "  --nmi-at FRAME      press NMI;  --mouse-set X Y BUTTONS  fix the mouse" & ASCII.LF &
+     "  --break ADDR, --break-if ADDR CONDITION, --watch ADDR   stop there" & ASCII.LF &
+     "  --profile           profile the run and print the top 20" & ASCII.LF &
+     "  --disassemble FROM TO FILE [--entry ADDR ...]  memory as source" & ASCII.LF &
+     "  --load-snapshot F, --save-snapshot F, --save-tape F, --record-rzx F," & ASCII.LF &
+     "  --dump F            snapshot / tape / RZX / memory before / after" & ASCII.LF &
+     "  --monitor ""CMDS""    monitor commands after the run (; separates, h lists)" & ASCII.LF;
+
    procedure Monitor_Print (S : String) is
    begin
       Put_Line (S);
@@ -187,7 +239,10 @@ begin
             return (if I <= Argument_Count then Argument (I) else "");
          end Next;
       begin
-         if A = "--48" or else A = "--128" or else A = "--plus2"
+         if A = "--help" or else A = "-h" then
+            Put (Usage);
+            return;
+         elsif A = "--48" or else A = "--128" or else A = "--plus2"
            or else A = "--plus2a" or else A = "--plus3" or else A = "--zx81"
            or else A = "--zx80" or else A = "--pentagon"
            or else A = "--tc2048" or else A = "--16" or else A = "--48ntsc"
